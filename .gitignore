@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.py[cod]
+.venv/
+data/vector_store/
+data/knowledge/
+outputs/
+plan_render/
+tmp_plan_render/
+work/

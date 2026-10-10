@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Campus RAG</title>
+    <link rel="stylesheet" href="/static/style.css">
+  </head>
+
+  <body>
+    <main>
+      <p class="eyebrow">AI · PYTHON · RAG</p>
+      <h1>校园知识库助手</h1>
+      <p class="sub">FastAPI + LangChain + Chroma + LLM API</p>
+
+      <section class="upload-panel">
+        <label for="knowledge-file">上传知识库文件（仅 .txt 或 .md）</label>
+
+        <div class="upload-row">
+          <input id="knowledge-file" type="file" accept=".txt,.md">
+          <button id="upload" type="button">上传文件</button>
+        </div>
+
+        <p id="upload-status"></p>
+      </section>
+
+      <div class="toolbar">
+        <button id="index">建立 / 重建索引</button>
+        <span id="status">请先上传文件并建立索引</span>
+      </div>
+
+      <section id="messages">
+        <article class="bot">
+          你好！请先上传知识库文件，再点击“建立 / 重建索引”。
+        </article>
+      </section>
+
+      <form id="form">
+        <input
+          id="question"
+          placeholder="输入一个关于知识库的问题…"
+          autocomplete="off"
+        >
+        <button>发送</button>
+      </form>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

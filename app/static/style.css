@@ -1,0 +1,136 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #f4f7fb;
+  color: #18233a;
+  font: 16px system-ui, "Microsoft YaHei", sans-serif;
+}
+
+main {
+  max-width: 780px;
+  margin: 7vh auto;
+  padding: 32px;
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 18px 50px #19335d18;
+}
+
+.eyebrow {
+  color: #4967d9;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.sub {
+  color: #65718a;
+}
+
+button {
+  border: 0;
+  border-radius: 9px;
+  background: #4664d9;
+  color: white;
+  padding: 11px 16px;
+  cursor: pointer;
+}
+
+.toolbar {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin: 28px 0;
+}
+
+#status,
+#upload-status {
+  color: #65718a;
+  font-size: 14px;
+}
+
+/* 上传区域 */
+.upload-panel {
+  margin: 0 0 22px;
+}
+
+.upload-panel label {
+  display: block;
+  margin-bottom: 8px;
+  color: #65718a;
+  font-size: 14px;
+}
+
+.upload-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+#knowledge-file {
+  flex: 1;
+  border: 1px solid #dce2ee;
+  border-radius: 9px;
+  padding: 9px;
+  background: white;
+}
+
+#upload-status {
+  margin: 8px 0 0;
+}
+
+#messages {
+  height: 360px;
+  overflow: auto;
+  border: 1px solid #e6eaf2;
+  border-radius: 12px;
+  padding: 18px;
+  background: #fafbfe;
+}
+
+article {
+  white-space: pre-wrap;
+  max-width: 80%;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  line-height: 1.5;
+}
+
+.bot {
+  background: #eaf0ff;
+}
+
+.user {
+  background: #4664d9;
+  color: white;
+  margin-left: auto;
+}
+
+form {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+form input {
+  flex: 1;
+  border: 1px solid #dce2ee;
+  border-radius: 9px;
+  padding: 12px;
+  font: inherit;
+}
+
+@media (max-width: 820px) {
+  main {
+    margin: 0;
+    border-radius: 0;
+    min-height: 100vh;
+  }
+
+  .upload-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

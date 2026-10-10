@@ -1,0 +1,1 @@
+"""RAG internship demo application."""

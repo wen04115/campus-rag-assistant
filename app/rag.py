@@ -51,6 +51,14 @@ def rebuild_index() -> dict:
         chunk_size=500, 
         chunk_overlap=80
     ).split_documents(source_docs)
+
+    chunk_counts: dict[str, int] = {}
+
+    for chunk in chunks:
+        source = chunk.metadata.get("source", "未知")
+        chunk_counts[source] = chunk_counts.get(source, 0) + 1
+        chunk.metadata["chunk_index"] = chunk_counts[source] 
+
     for index, chunk in enumerate(chunks[:3], start=1):
         print(f"\n--- 第 {index} 个文本片段 ---")
         print(f"来源文件：{chunk.metadata.get('source', '未知')}")
@@ -78,4 +86,58 @@ def ask(question: str) -> dict:
         base_url=os.getenv("OPENAI_BASE_URL") or None,
     )
     answer = (PROMPT | model).invoke({"context": context, "question": question}).content
-    return {"answer": answer, "sources": list(dict.fromkeys(doc.metadata.get("source", "未知") for doc in matched))}
+    citations = [
+        {
+            "source": doc.metadata.get("source", "未知"),
+            "chunk_index": doc.metadata.get("chunk_index", "未知"),
+            "excerpt": doc.page_content[:100],
+        }
+        for doc in matched
+    ]
+
+    sources = list(
+        dict.fromkeys(
+            citation["source"] for citation in citations
+        )
+    )
+
+    return {
+        "answer": answer,
+        "sources": sources,
+        "citations": citations,
+    }
+
+def ask_stream(question: str):
+    if not VECTOR_DIR.exists():
+        raise RuntimeError("尚未建立索引，请先调用 /api/index")
+
+    matched = _store().similarity_search(question, k=4)
+
+    context = "\n\n".join(
+        f"[来源：{doc.metadata.get('source', '未知')}]\n{doc.page_content}"
+        for doc in matched
+    )
+
+    model = ChatOpenAI(
+        model=os.getenv("CHAT_MODEL", "deepseek-v4-flash"),
+        temperature=0,
+        base_url=os.getenv("OPENAI_BASE_URL") or None,
+    )
+
+    sources = list(
+        dict.fromkeys(
+            doc.metadata.get("source", "未知")
+            for doc in matched
+        )
+    )
+
+    def generate():
+        for chunk in (PROMPT | model).stream(
+            {"context": context, "question": question}
+        ):
+            if chunk.content:
+                yield chunk.content
+
+        yield "\n\n来源：" + "、".join(sources)
+
+    return generate()

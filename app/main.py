@@ -2,11 +2,11 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from app.rag import KNOWLEDGE_DIR, ask, rebuild_index
+from app.rag import KNOWLEDGE_DIR, ask, ask_stream, rebuild_index
 
 load_dotenv()
 app = FastAPI(title="Campus RAG Demo", version="1.0.0")
@@ -73,6 +73,18 @@ def index_knowledge():
 def chat(payload: Question):
     try:
         return ask(payload.question)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+@app.post("/api/chat/stream")
+def chat_stream(payload: Question):
+    try:
+        return StreamingResponse(
+            ask_stream(payload.question),
+            media_type="text/plain; charset=utf-8",
+        )
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:

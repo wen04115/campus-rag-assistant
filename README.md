@@ -1,56 +1,111 @@
-# Campus RAG：应届生 AI + Python 全栈作品
+# 校园知识库助手
 
-一个可以本地跑通的企业知识库问答项目。它将本地 Markdown/TXT 文档切分、向量化并存入 Chroma，再由大模型根据检索到的上下文作答。适合用来展示 Python 后端、LLM API、向量数据库、LangChain 与前端交互的完整链路。
+这是一个简单的 RAG 知识库问答项目。
 
-## 技术栈
+用户可以上传 `.txt` 或 `.md` 文件，点击建立索引后，再根据上传的资料提问。系统会先从资料里找相关内容，再让大模型根据这些内容回答。
 
-- **FastAPI**：提供 REST API 和静态网页
-- **LangChain**：文本切分、提示词、模型调用流程编排
-- **DeepSeek API（OpenAI-compatible）**：负责 Chat LLM 生成
-- **BGE-small-zh 本地模型**：负责 Embedding，无需第二个 API Key
-- **Chroma**：本地持久化向量数据库
-- **原生 HTML/CSS/JS**：聊天界面，避免前端框架干扰面试重点
+## 这个项目能做什么
 
-## 快速开始
+- 上传 TXT、Markdown 文件
+- 把文件切成多个小段，建立向量索引
+- 根据知识库内容回答问题
+- 显示回答参考了哪些文件和片段
+- 对知识库里没有的问题，提示“没有找到相关信息”
+- 保存聊天历史记录
+- 刷新网页后还能看到以前的提问记录
 
-要求：Python 3.10+，以及一个兼容 OpenAI SDK 的 API Key。
+## 用到的技术
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-Copy-Item .env.example .env
-```
-
-编辑 `.env`，填入新创建的 DeepSeek `OPENAI_API_KEY`。保留 `OPENAI_BASE_URL=https://api.deepseek.com`，不要在行首加 `#`；`CHAT_MODEL=deepseek-v4-flash` 即可。首次建立索引时会下载 BGE 中文向量模型，之后会使用本地缓存。
-
-```powershell
-uvicorn app.main:app --reload
-```
-
-浏览器打开 http://127.0.0.1:8000，先点“建立 / 重建索引”，再提问。API 文档在 http://127.0.0.1:8000/docs。
-
-## RAG 链路（面试时这样讲）
-
-`知识文件 → RecursiveCharacterTextSplitter → Embedding API → Chroma → 相似度检索 Top-4 → Prompt（上下文+问题）→ Chat LLM → 答案+来源`
-
-1. 文档切块（500 字符，80 字符重叠）解决长文无法直接嵌入、边界语义丢失的问题。
-2. 本地 BGE Embedding 将文本和问题映射为同一向量空间；Chroma 按相似度找回最相关的 4 个片段。
-3. Prompt 要求模型只能根据检索上下文作答，减少幻觉，并把命中的文件名返回给页面，方便追溯。
-4. 索引与问答拆成两个 API：`POST /api/index` 负责离线建库，`POST /api/chat` 负责在线检索生成。这是生产化的基本分层。
-
-## 可继续迭代（简历亮点）
-
-- 加入 PDF/Word 解析、上传文件与异步任务队列
-- 用 Reranker 重排召回结果，增加引用片段和评分
-- 增加对话历史、用户权限与多知识库隔离
-- 用 LangSmith 观测 token、延迟与命中质量；构建问答集做 RAGAS 评估
-- Docker 化并部署到云服务器
+- React：做前端页面
+- Vite：启动 React 开发环境
+- FastAPI：写后端接口
+- LangChain：处理 RAG 流程
+- Chroma：保存文本向量，查找相似内容
+- DeepSeek API：生成最终回答
+- SQLite：保存聊天记录
 
 ## 项目结构
 
 ```text
-app/             FastAPI、RAG 服务和网页
-data/knowledge/  可替换的知识库源文件
-data/vector_store/  运行后自动生成的 Chroma 数据
-```
+app/
+  main.py       后端接口，比如上传、建索引、提问、读取历史记录
+  rag.py        文档切分、向量检索、调用大模型
+  static/       之前写的原生 HTML 页面
+
+frontend/
+  src/App.jsx   React 页面主要代码
+  src/index.css 页面样式
+  vite.config.js Vite 代理配置
+
+data/
+  knowledge/    上传的知识库文件
+  vector_store/ Chroma 建好的向量索引
+  chat_history.db 聊天历史数据库
+
+## RAG 流程
+
+### 上传文件
+→ 保存到 data/knowledge
+→ 把文件切成多个片段
+→ 把片段转成向量
+→ 保存到 Chroma
+
+### 用户提问
+
+→ Chroma 找最相似的几个片段
+→ 把片段和问题一起发给大模型
+→ 返回回答、来源文件和引用片段
+
+
+### 怎么启动
+启动后端
+先进入项目根目录：
+cd D:\codex_create\2026-09-09\ai-python-rag-python-api-langchain
+
+第一次运行时安装 Python 依赖：
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+
+复制环境变量文件：
+Copy-Item .env.example .env
+
+打开 .env，填写自己的 API Key：
+OPENAI_API_KEY=你的真实密钥
+OPENAI_BASE_URL=https://api.deepseek.com
+CHAT_MODEL=deepseek-v4-flash
+
+### 启动后端：
+uvicorn app.main:app --reload --port 8001
+后端接口文档地址：
+http://127.0.0.1:8001/docs
+
+### 启动前端
+新开一个终端：
+cd D:\codex_create\2026-09-09\ai-python-rag-python-api-langchain\frontend
+npm install
+npm run dev
+
+浏览器打开：
+http://localhost:5173
+
+### 使用方法
+1. 上传一个 .txt 或 .md 文件。
+2. 点击“建立 / 重建索引”。
+3. 在聊天框输入问题。
+4. 查看回答、来源和引用片段。
+5. 在历史记录区域查看之前问过的问题。
+
+### 接口
+- POST /api/upload：上传文件
+- POST /api/index：建立索引
+- POST /api/chat：普通问答
+- POST /api/chat/stream：流式问答
+- GET /api/history：读取聊天历史
+- GET /health：检查后端是否启动
+
+### 我遇到的问题
+- 前端和后端端口不同，开发时用 Vite 代理把 /api 请求转发到 FastAPI。
+- 上传文件后不能直接提问，还需要先建立索引。
+- 刷新网页后聊天气泡会清空，所以用 SQLite 保存历史记录。
+- .env 里有真实 API Key，所以要加入 .gitignore，不能提交到 Git。  

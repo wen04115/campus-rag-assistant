@@ -6,6 +6,10 @@ function App() {
   const [indexStatus, setIndexStatus] = useState('请先上传文件并建立索引')
   const [uploading, setUploading] = useState(false)
   const [indexing, setIndexing] = useState(false)
+  const [files, setFiles] = useState([])
+  const [filesStatus, setFilesStatus] = useState('正在读取已上传文件...')
+  const [filesLoading, setFilesLoading] = useState(false)
+  const [deletingFile, setDeletingFile] = useState('')
 
   const [question, setQuestion] = useState('')
   const [messages, setMessages] = useState([])
@@ -17,7 +21,33 @@ function App() {
 
   useEffect(() => {
     loadHistory()
+    loadFiles()
   }, [])
+
+  function formatFileSize(size) {
+    if (size < 1024) return `${size} B`
+    return `${(size / 1024).toFixed(1)} KB`
+  }
+
+  async function loadFiles() {
+    setFilesLoading(true)
+
+    try {
+      const response = await fetch('/api/files')
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.detail || '读取文件失败')
+      }
+
+      setFiles(data)
+      setFilesStatus(data.length === 0 ? '还没有上传知识库文件' : `共 ${data.length} 个文件`)
+    } catch (error) {
+      setFilesStatus(`读取失败：${error.message}`)
+    } finally {
+      setFilesLoading(false)
+    }
+  }
 
   async function handleUpload() {
     if (!selectedFile) {
@@ -45,6 +75,7 @@ function App() {
 
       setUploadStatus(`${data.filename} 上传成功，请点击“建立 / 重建索引”`)
       setSelectedFile(null)
+      await loadFiles()
     } catch (error) {
       setUploadStatus(`上传失败：${error.message}`)
     } finally {
@@ -72,6 +103,34 @@ function App() {
       setIndexStatus(`建立索引失败：${error.message}`)
     } finally {
       setIndexing(false)
+    }
+  }
+
+  async function handleDeleteFile(filename) {
+    const confirmed = window.confirm(`确定删除“${filename}”吗？删除后会同步更新向量索引。`)
+    if (!confirmed) return
+
+    setDeletingFile(filename)
+
+    try {
+      const response = await fetch(`/api/files/${encodeURIComponent(filename)}`, {
+        method: 'DELETE',
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.detail || '删除文件失败')
+      }
+
+      setIndexStatus(data.message)
+      if (selectedFile?.name === filename) {
+        setSelectedFile(null)
+      }
+      await loadFiles()
+    } catch (error) {
+      setFilesStatus(`删除失败：${error.message}`)
+    } finally {
+      setDeletingFile('')
     }
   }
 
@@ -183,6 +242,43 @@ setChatError('')
         </section>
 
         <section className="panel">
+          <details>
+            <summary>知识库文件</summary>
+         
+            <div className="history-title">
+            
+              <button onClick={loadFiles} disabled={filesLoading || Boolean(deletingFile)}>
+              {filesLoading ? '刷新中...' : '刷新列表'}
+              </button>
+            </div>
+          
+
+          <p className="status">{filesStatus}</p>
+
+          {files.length > 0 && (
+            <div className="file-list">
+              {files.map((file) => (
+                <article className="file-item" key={file.name}>
+                  <div>
+                    <strong>{file.name}</strong>
+                    <p>{formatFileSize(file.size)} · {file.updated_at}</p>
+                  </div>
+                  <button
+                    className="danger-button"
+                    onClick={() => handleDeleteFile(file.name)}
+                    disabled={Boolean(deletingFile)}
+                  >
+                    {deletingFile === file.name ? '删除中...' : '删除'}
+                  </button>
+                </article>
+              ))}
+            </div>
+           
+          )}
+         </details>  
+        </section>
+
+        <section className="panel">
           <h2>建立向量索引</h2>
 
           <button onClick={handleIndex} disabled={indexing}>
@@ -264,14 +360,18 @@ setChatError('')
           )}
         </section>
         <section className="panel">
-  <div className="history-title">
-    <h2>历史记录</h2>
+    
+     <details>
 
-    <button onClick={loadHistory} disabled={historyLoading}>
-      {historyLoading ? '刷新中...' : '刷新记录'}
-    </button>
-  </div>
+    
+       <summary>历史记录</summary>
 
+       <button onClick={loadHistory} disabled={historyLoading}>
+         {historyLoading ? '刷新中...' : '刷新记录'}
+       </button>
+       
+  
+   
   <p className="status">{historyStatus}</p>
 
   {history.length === 0 ? (
@@ -299,10 +399,11 @@ setChatError('')
       ))}
     </div>
   )}
-</section>
-      </section>
+  </details> 
+ </section>
+</section>      
     </main>
   )
-}
+} 
 
 export default App

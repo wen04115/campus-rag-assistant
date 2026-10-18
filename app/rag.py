@@ -33,6 +33,19 @@ def _store() -> Chroma:
     return Chroma(collection_name="intern_rag", embedding_function=_embeddings(), persist_directory=str(VECTOR_DIR))
 
 
+def delete_source_from_index(filename: str) -> bool:
+    """Delete one source file's chunks without rebuilding every document."""
+    if not VECTOR_DIR.exists():
+        return False
+
+    store = Chroma(
+        collection_name="intern_rag",
+        persist_directory=str(VECTOR_DIR),
+    )
+    store.delete(where={"source": filename})
+    return True
+
+
 def _load_documents() -> list[Document]:
     docs: list[Document] = []
     for path in KNOWLEDGE_DIR.glob("**/*"):
@@ -45,25 +58,6 @@ def _load_documents() -> list[Document]:
 def rebuild_index() -> dict:
     """Split local knowledge files and write their embeddings into Chroma."""
     source_docs = _load_documents()
-    if not source_docs:
-        return {"documents": 0, "chunks": 0}
-    chunks = RecursiveCharacterTextSplitter(
-        chunk_size=500, 
-        chunk_overlap=80
-    ).split_documents(source_docs)
-
-    chunk_counts: dict[str, int] = {}
-
-    for chunk in chunks:
-        source = chunk.metadata.get("source", "未知")
-        chunk_counts[source] = chunk_counts.get(source, 0) + 1
-        chunk.metadata["chunk_index"] = chunk_counts[source] 
-
-    for index, chunk in enumerate(chunks[:3], start=1):
-        print(f"\n--- 第 {index} 个文本片段 ---")
-        print(f"来源文件：{chunk.metadata.get('source', '未知')}")
-        print(f"文本长度：{len(chunk.page_content)} 个字符")
-        print(chunk.page_content)
     # Do not delete the persistence directory. On Windows Chroma's HNSW index file
     # can be held open by this running FastAPI process. Clearing existing records
     # through Chroma avoids a WinError 32 file-lock conflict during a rebuild.
@@ -71,6 +65,22 @@ def rebuild_index() -> dict:
     existing_ids = store.get(include=[]).get("ids", [])
     if existing_ids:
         store.delete(ids=existing_ids)
+
+    if not source_docs:
+        return {"documents": 0, "chunks": 0}
+
+    chunks = RecursiveCharacterTextSplitter(
+        chunk_size=500,
+        chunk_overlap=80,
+    ).split_documents(source_docs)
+
+    chunk_counts: dict[str, int] = {}
+
+    for chunk in chunks:
+        source = chunk.metadata.get("source", "未知")
+        chunk_counts[source] = chunk_counts.get(source, 0) + 1
+        chunk.metadata["chunk_index"] = chunk_counts[source]
+
     store.add_documents(chunks)
     return {"documents": len(source_docs), "chunks": len(chunks)}
 

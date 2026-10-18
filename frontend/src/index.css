@@ -177,6 +177,38 @@ button:disabled {
   margin-top: 14px;
 }
 
+.file-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border: 1px solid #dbe5f5;
+  border-radius: 10px;
+  background: white;
+}
+
+.file-item strong {
+  overflow-wrap: anywhere;
+}
+
+.file-item p {
+  margin: 6px 0 0;
+  color: #667899;
+  font-size: 14px;
+}
+
+.danger-button {
+  flex: none;
+  background: #d92d20;
+}
+
 .history-item {
   padding: 14px;
   border: 1px solid #dbe5f5;

@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from app.rag import KNOWLEDGE_DIR, ask, ask_stream, rebuild_index
+from app.rag import KNOWLEDGE_DIR, ask, ask_stream, delete_source_from_index, rebuild_index
 
 load_dotenv()
 app = FastAPI(title="Campus RAG Demo", version="1.0.0")
@@ -100,12 +100,62 @@ async def upload_knowledge(file: UploadFile = File(...)):
     KNOWLEDGE_DIR.mkdir(parents=True, exist_ok=True)
 
     target_path = KNOWLEDGE_DIR / filename
+    if target_path.exists():
+        raise HTTPException(
+            status_code=409,
+            detail="同名文件已存在，请先删除旧文件再上传",
+        )
+
     target_path.write_text(text, encoding="utf-8")
 
     return {
         "filename": filename,
         "message": "上传成功，请点击建立 / 重建索引",
     }
+
+
+@app.get("/api/files")
+def get_knowledge_files():
+    KNOWLEDGE_DIR.mkdir(parents=True, exist_ok=True)
+
+    files = [
+        {
+            "name": path.name,
+            "size": path.stat().st_size,
+            "updated_at": datetime.fromtimestamp(path.stat().st_mtime).strftime(
+                "%Y-%m-%d %H:%M:%S"
+            ),
+        }
+        for path in KNOWLEDGE_DIR.iterdir()
+        if path.is_file() and path.suffix.lower() in {".txt", ".md"}
+    ]
+
+    return sorted(files, key=lambda item: item["updated_at"], reverse=True)
+
+
+@app.delete("/api/files/{filename}")
+def delete_knowledge_file(filename: str):
+    safe_filename = Path(filename).name
+    suffix = Path(safe_filename).suffix.lower()
+
+    if safe_filename != filename or suffix not in {".txt", ".md"}:
+        raise HTTPException(status_code=400, detail="不支持删除该文件")
+
+    target_path = KNOWLEDGE_DIR / safe_filename
+    if not target_path.is_file():
+        raise HTTPException(status_code=404, detail="文件不存在")
+
+    try:
+        target_path.unlink()
+        index_updated = delete_source_from_index(safe_filename)
+        return {
+            "filename": safe_filename,
+            "message": "文件已删除，向量索引已同步更新" if index_updated else "文件已删除，尚未建立索引",
+            "index_updated": index_updated,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"删除文件失败：{exc}") from exc
+
 
 @app.post("/api/index")
 def index_knowledge():

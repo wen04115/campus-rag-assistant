@@ -1,4 +1,4 @@
-# 校园知识库助手
+# 文档知识库问答助手
 
 这是一个简单的 RAG 知识库问答项目。
 
@@ -13,6 +13,8 @@
 - 对知识库里没有的问题，提示“没有找到相关信息”
 - 保存聊天历史记录
 - 刷新网页后还能看到以前的提问记录
+- 查看和删除已上传文件
+- 使用 Docker 运行后端
 
 ## 用到的技术
 
@@ -41,6 +43,7 @@ data/
   knowledge/    上传的知识库文件
   vector_store/ Chroma 建好的向量索引
   chat_history.db 聊天历史数据库
+```  
 
 ## RAG 流程
 
@@ -57,8 +60,10 @@ data/
 → 返回回答、来源文件和引用片段
 
 
-### 怎么启动
-启动后端
+### 本地启动
+本地后端和 Docker 后端选择一种启动，两者默认都使用 8001 端口，不要同时启动
+
+本地启动后端
 先进入项目根目录：
 cd D:\codex_create\2026-09-09\ai-python-rag-python-api-langchain
 
@@ -89,6 +94,35 @@ npm run dev
 浏览器打开：
 http://localhost:5173
 
+## 使用 Docker 启动后端
+
+先在项目根目录配置好 `.env`，然后构建镜像：
+
+```powershell
+docker build -t document-rag-assistant .
+```
+
+第一次运行：
+
+```powershell
+docker run --name document-rag -p 127.0.0.1:8001:8001 --env-file .env -v "${PWD}/data:/app/data" document-rag-assistant
+```
+
+看到启动成功后，访问 http://127.0.0.1:8001/health，返回 `{"status":"ok"}` 即正常。
+
+在终端按 Ctrl + C 停止。下次启动直接执行：
+
+```powershell
+docker start -a document-rag
+```
+
+数据保存在本机项目的 `data` 目录。React 前端单独启动：
+
+```powershell
+cd frontend
+npm run dev
+```
+
 ### 使用方法
 1. 上传一个 .txt 或 .md 文件。
 2. 点击“建立 / 重建索引”。
@@ -103,6 +137,8 @@ http://localhost:5173
 - POST /api/chat/stream：流式问答
 - GET /api/history：读取聊天历史
 - GET /health：检查后端是否启动
+- GET /api/files：查看文件列表
+- DELETE /api/files/{filename}：删除文件及对应的向量片段
 
 ### 我遇到的问题
 - 前端和后端端口不同，开发时用 Vite 代理把 /api 请求转发到 FastAPI。

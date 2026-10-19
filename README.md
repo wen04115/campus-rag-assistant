@@ -155,3 +155,22 @@ npm run dev
 - 前端通过 Vite 代理将 `/api` 请求转发至 FastAPI，避免开发环境跨域问题。
 - 上传文件后需建立或重建向量索引，才可参与后续语义检索。
 - API Key 使用 `.env` 管理，并通过 `.gitignore` 防止提交敏感配置。
+
+## 接口测试
+
+先启动后端，再在项目根目录执行：
+
+```powershell
+python -m pip install requests
+python -m unittest discover -s tests -v
+```
+
+测试使用 unittest 和 requests，检查文件上传校验、同名上传和删除相关行为。
+
+如果本机代理导致 ProxyError，在运行测试的 PowerShell 中先执行：
+
+```powershell
+$env:NO_PROXY = "127.0.0.1,localhost"
+```
+
+测试会创建随机命名的文件，并在正常执行清理步骤时删除它。

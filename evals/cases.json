@@ -1,0 +1,66 @@
+{
+  "source": "internship_policy.md",
+  "scope": "仅根据《星云科技实习生手册》回答",
+  "cases": [
+    {
+      "id": 1,
+      "question": "实习生的核心工作时间是什么？",
+      "answerable": true,
+      "expected_points": ["工作日", "10:00 至 17:00"]
+    },
+    {
+      "id": 2,
+      "question": "实习生每周至少需要到岗几天？",
+      "answerable": true,
+      "expected_points": ["至少 4 天"]
+    },
+    {
+      "id": 3,
+      "question": "实习生申请远程办公，需要提前多久向谁申请？",
+      "answerable": true,
+      "expected_points": ["提前一天", "向导师申请"]
+    },
+    {
+      "id": 4,
+      "question": "实习第一周需要完成什么？学习计划什么时候提交？",
+      "answerable": true,
+      "expected_points": ["环境搭建", "阅读项目文档", "周五前提交学习计划"]
+    },
+    {
+      "id": 5,
+      "question": "实习期有多长？",
+      "answerable": true,
+      "expected_points": ["三个月"]
+    },
+    {
+      "id": 6,
+      "question": "转正评估在什么时候进行？",
+      "answerable": true,
+      "expected_points": ["实习结束前两周"]
+    },
+    {
+      "id": 7,
+      "question": "导师从哪四个维度评估实习生？",
+      "answerable": true,
+      "expected_points": ["业务结果", "工程质量", "协作沟通", "学习能力"]
+    },
+    {
+      "id": 8,
+      "question": "实习生每月工资是多少？",
+      "answerable": false,
+      "expected_points": ["说明手册未提供工资信息，不编造金额"]
+    },
+    {
+      "id": 9,
+      "question": "实习生有几天带薪年假？",
+      "answerable": false,
+      "expected_points": ["说明手册未提供年假信息，不编造天数"]
+    },
+    {
+      "id": 10,
+      "question": "业务导师的姓名是什么？",
+      "answerable": false,
+      "expected_points": ["说明手册未提供导师姓名，不编造人名"]
+    }
+  ]
+}

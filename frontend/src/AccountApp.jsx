@@ -4,6 +4,9 @@ import {
   login,
   getCurrentUser,
   getKnowledgeBases,
+  createKnowledgeBase,
+  renameKnowledgeBase,
+  deleteKnowledgeBase,
 } from './api.js'
 
 export default function AccountApp() {
@@ -15,7 +18,7 @@ export default function AccountApp() {
   const [selectedId, setSelectedId] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-
+  const [newLibraryName, setNewLibraryName] = useState('')
   const selectedLibrary = libraries.find(
     (item) => String(item.id) === selectedId,
   )
@@ -43,6 +46,7 @@ export default function AccountApp() {
     setSelectedId('')
     setUsername('')
     setPassword('')
+    setNewLibraryName('')
     setError('')
   }, [])
 
@@ -100,6 +104,155 @@ export default function AccountApp() {
       setBusy(false)
     }
   }
+
+    async function handleCreateLibrary(event) {
+    event.preventDefault()
+    if (!session || busy) return
+
+    const name = newLibraryName.trim()
+
+    if (!name) {
+      setError('请输入知识库名称')
+      return
+    }
+
+    setBusy(true)
+    setError('')
+
+    let creationSucceeded = false
+
+    try {
+      const created = await createKnowledgeBase(session.token, name)
+      creationSucceeded = true
+      setNewLibraryName('')
+
+      if (!created || !Number.isInteger(created.id)) {
+        throw new Error('创建接口返回格式异常')
+      }
+
+      const data = await getKnowledgeBases(session.token)
+      applyLibraries(data)
+
+      if (data.items.some((item) => item.id === created.id)) {
+        setSelectedId(String(created.id))
+      }
+    } catch (requestError) {
+      if (requestError.status === 401) {
+        handleLogout()
+        setError('登录已失效，请重新登录后检查知识库列表')
+      } else if (creationSucceeded) {
+        setError(
+          '知识库已创建，但列表刷新失败。请点击刷新知识库，不要重复创建。',
+        )
+      } else {
+        setError(
+          `${requestError.message || '创建请求失败'}。`
+          + '如果是网络错误，请先刷新列表确认是否已创建，避免重复提交。',
+        )
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+    async function handleRenameLibrary() {
+    if (!session || !selectedLibrary || busy) return
+
+    const entered = window.prompt(
+      '请输入新的知识库名称（最多100个字符）',
+      selectedLibrary.name,
+    )
+
+    if (entered === null) return
+
+    const name = entered.trim()
+
+    if (!name || name.length > 100) {
+      setError('知识库名称需要为1～100个字符')
+      return
+    }
+
+    if (name === selectedLibrary.name) return
+
+    const id = selectedLibrary.id
+
+    setBusy(true)
+    setError('')
+
+    try {
+      const updated = await renameKnowledgeBase(session.token, id, name)
+
+      if (
+        updated?.id !== id
+        || typeof updated.name !== 'string'
+      ) {
+        throw new Error('重命名接口返回格式异常')
+      }
+
+      setLibraries((previous) => previous.map((item) => (
+        item.id === id ? { ...item, name: updated.name } : item
+      )))
+    } catch (requestError) {
+      if (requestError.status === 401) {
+        handleLogout()
+        setError('登录已失效，请重新登录')
+      } else {
+        setError(
+          `${requestError.message || '重命名失败'}。`
+          + '如果是网络错误，请刷新知识库列表确认最终名称。',
+        )
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+    async function handleDeleteLibrary() {
+        if (!session || !selectedLibrary || busy) return
+
+        const { id, name } = selectedLibrary
+
+        const confirmed = window.confirm(
+        `确定删除知识库“${name}”（ID：${id}）吗？`
+        + '\n只能删除没有文档的知识库，删除后无法在页面恢复。',
+        )
+
+        if (!confirmed) return
+
+        setBusy(true)
+        setError('')
+
+        let deletionSucceeded = false
+
+        try {
+        await deleteKnowledgeBase(session.token, id)
+        deletionSucceeded = true
+
+        // 删除成功后立即取消选择，卸载原知识库的文档面板。
+        setSelectedId('')
+        setLibraries((previous) => (
+            previous.filter((item) => item.id !== id)
+        ))
+        setTotal((previous) => Math.max(0, previous - 1))
+
+        const data = await getKnowledgeBases(session.token)
+        applyLibraries(data)
+        } catch (requestError) {
+        if (requestError.status === 401) {
+            handleLogout()
+            setError('登录已失效，请重新登录')
+        } else if (deletionSucceeded) {
+            setError('知识库已删除，但列表刷新失败，请点击刷新知识库。')
+        } else {
+            setError(
+            `${requestError.message || '删除请求失败'}。`
+            + '如果是网络错误，请先刷新列表确认结果。',
+            )
+        }
+        } finally {
+        setBusy(false)
+        }
+    }
 
   return (
     <main className="page">
@@ -162,12 +315,37 @@ export default function AccountApp() {
             <section className="panel">
               <h2>我的知识库</h2>
 
+                          <form onSubmit={handleCreateLibrary}>
+                <label htmlFor="new-library-name">
+                  新知识库名称
+                </label>
+
+                <input
+                  id="new-library-name"
+                  value={newLibraryName}
+                  onChange={(event) => {
+                    setNewLibraryName(event.target.value)
+                  }}
+                  placeholder="例如：课程资料、实习文档"
+                  maxLength={100}
+                  required
+                  disabled={busy}
+                />
+
+                <button
+                  type="submit"
+                  disabled={busy || !newLibraryName.trim()}
+                >
+                  {busy ? '处理中…' : '创建知识库'}
+                </button>
+              </form>
+
               <button
                 type="button"
                 onClick={handleRefresh}
                 disabled={busy}
               >
-                {busy ? '正在刷新…' : '刷新知识库'}
+                {busy ? '处理中…' : '刷新知识库'}
               </button>
 
               <p className="hint">
@@ -199,6 +377,26 @@ export default function AccountApp() {
                       已选择：{selectedLibrary.name}
                       （ID：{selectedLibrary.id}）
                     </p>
+                  )}
+
+                  {selectedLibrary && (
+                    <button
+                      type="button"
+                      onClick={handleRenameLibrary}
+                      disabled={busy}
+                    >
+                      重命名当前知识库
+                    </button>
+                  )}
+
+                  {selectedLibrary && (
+                    <button
+                      type="button"
+                      onClick={handleDeleteLibrary}
+                      disabled={busy}
+                    >
+                      删除当前空知识库
+                    </button>
                   )}
 
                 {selectedLibrary && (

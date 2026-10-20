@@ -57,3 +57,32 @@ export function getKnowledgeBases(token) {
     token,
   })
 }
+
+export function createKnowledgeBase(token, name) {
+  return apiRequest('/api/knowledge-bases', {
+    token,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ name }),
+  })
+}
+
+export function renameKnowledgeBase(token, id, name) {
+  return apiRequest(`/api/knowledge-bases/${id}`, {
+    token,
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ name }),
+  })
+}
+
+export function deleteKnowledgeBase(token, id) {
+  return apiRequest(`/api/knowledge-bases/${id}`, {
+    token,
+    method: 'DELETE',
+  })
+}

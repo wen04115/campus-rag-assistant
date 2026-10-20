@@ -75,7 +75,6 @@ jobs:
           --health-retries=10
     env:
       MYSQL_HOST: 127.0.0.1
-      MYSQL_PORT: ${{ job.services.mysql.ports[3306] }}
       MYSQL_USER: ci_runner
       MYSQL_PASSWORD: ci_test_only
       MYSQL_DATABASE: rag_platform
@@ -89,10 +88,14 @@ jobs:
       - name: Install migration dependencies
         run: python -m pip install "SQLAlchemy==2.0.52" "PyMySQL[rsa]==1.2.3" "alembic==1.20.0" "python-dotenv==1.2.2"
       - name: Upgrade empty database and check model consistency
+        env:
+          MYSQL_PORT: ${{ job.services.mysql.ports[3306] }}
         run: |
           python -m alembic upgrade head
           python -m alembic check
       - name: Verify JSON and foreign key behavior on MySQL
+        env:
+          MYSQL_PORT: ${{ job.services.mysql.ports[3306] }}
         run: python tests/verify_mysql.py
 
   frontend:

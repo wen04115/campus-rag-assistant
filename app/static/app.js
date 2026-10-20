@@ -19,7 +19,7 @@ document.querySelector('#upload').onclick = async () => {
   const file = fileInput.files[0]
 
   if (!file) {
-    uploadStatus.textContent = '请先选择一个 .txt 或 .md 文件'
+    uploadStatus.textContent = '请先选择一个 .txt、.md 或文字版 PDF 文件re'
     return
   }
 

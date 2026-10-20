@@ -9,3 +9,4 @@ sentence-transformers>=3.0.0
 python-dotenv>=1.0.1
 pydantic>=2.9.0
 python-multipart>=0.0.9
+pypdf==6.21.1

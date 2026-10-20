@@ -9,6 +9,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_openai import ChatOpenAI
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from app.document_loader import load_document_bytes
 
 ROOT = Path(__file__).resolve().parent.parent
 KNOWLEDGE_DIR = ROOT / "data" / "knowledge"
@@ -48,10 +49,21 @@ def delete_source_from_index(filename: str) -> bool:
 
 def _load_documents() -> list[Document]:
     docs: list[Document] = []
+
     for path in KNOWLEDGE_DIR.glob("**/*"):
-        if path.suffix.lower() not in {".md", ".txt"} or not path.is_file():
+        if not path.is_file():
             continue
-        docs.append(Document(page_content=path.read_text(encoding="utf-8"), metadata={"source": path.name}))
+
+        if path.suffix.lower() not in {".md", ".txt", ".pdf"}:
+            continue
+
+        # 统一读取；PDF 每个有文字的页面生成一个 Document
+        documents = load_document_bytes(
+            path.read_bytes(),
+            path.name,
+        )
+        docs.extend(documents)
+
     return docs
 
 
@@ -82,13 +94,30 @@ def rebuild_index() -> dict:
         chunk.metadata["chunk_index"] = chunk_counts[source]
 
     store.add_documents(chunks)
-    return {"documents": len(source_docs), "chunks": len(chunks)}
+    document_count = len({
+        doc.metadata["source"] for doc in source_docs
+    })
+
+    return {
+        "documents": document_count,
+        "chunks": len(chunks),
+    }
 
 
-def ask(question: str) -> dict:
+def ask(question: str, source: str | None = None) -> dict:
     if not VECTOR_DIR.exists():
         raise RuntimeError("尚未建立索引，请先调用 /api/index")
-    matched = _store().similarity_search(question, k=4)
+
+    search_filter = {"source": source} if source is not None else None
+
+    matched = _store().similarity_search(
+        question,
+        k=4,
+        filter=search_filter,
+    )
+
+    if not matched:
+        raise RuntimeError("所选范围内没有可检索的片段，请确认文件已建立索引")
     context = "\n\n".join(f"[来源：{doc.metadata.get('source', '未知')}]\n{doc.page_content}" for doc in matched)
     model = ChatOpenAI(
         model=os.getenv("CHAT_MODEL", "deepseek-v4-flash"),
@@ -99,6 +128,7 @@ def ask(question: str) -> dict:
     citations = [
         {
             "source": doc.metadata.get("source", "未知"),
+            "page": doc.metadata.get("page"),
             "chunk_index": doc.metadata.get("chunk_index", "未知"),
             "excerpt": doc.page_content[:100],
         }
@@ -117,11 +147,20 @@ def ask(question: str) -> dict:
         "citations": citations,
     }
 
-def ask_stream(question: str):
+def ask_stream(question: str, source: str | None = None):
     if not VECTOR_DIR.exists():
         raise RuntimeError("尚未建立索引，请先调用 /api/index")
 
-    matched = _store().similarity_search(question, k=4)
+    search_filter = {"source": source} if source is not None else None
+
+    matched = _store().similarity_search(
+        question,
+        k=4,
+        filter=search_filter,
+    )
+
+    if not matched:
+        raise RuntimeError("所选范围内没有可检索的片段，请确认文件已建立索引")
 
     context = "\n\n".join(
         f"[来源：{doc.metadata.get('source', '未知')}]\n{doc.page_content}"

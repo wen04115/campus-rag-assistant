@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 
 function App() {
   const [selectedFile, setSelectedFile] = useState(null)
-  const [uploadStatus, setUploadStatus] = useState('请选择 .txt 或 .md 文件')
+  const [uploadStatus, setUploadStatus] = useState('请选择 .txt、.md 或文字版 PDF 文件')
   const [indexStatus, setIndexStatus] = useState('请先上传文件并建立索引')
   const [uploading, setUploading] = useState(false)
   const [indexing, setIndexing] = useState(false)
@@ -12,6 +12,7 @@ function App() {
   const [deletingFile, setDeletingFile] = useState('')
 
   const [question, setQuestion] = useState('')
+  const [searchSource, setSearchSource] = useState('')
   const [messages, setMessages] = useState([])
   const [asking, setAsking] = useState(false)
   const [chatError, setChatError] = useState('')
@@ -122,7 +123,9 @@ function App() {
         throw new Error(data.detail || '删除文件失败')
       }
 
-      setIndexStatus(data.message)
+      if (searchSource === filename) {
+        setSearchSource('')
+      }
       if (selectedFile?.name === filename) {
         setSelectedFile(null)
       }
@@ -182,6 +185,7 @@ setChatError('')
         },
         body: JSON.stringify({
           question: text,
+          source: searchSource || null,
         }),
       })
 
@@ -226,11 +230,13 @@ setChatError('')
 
         <section className="panel">
           <h2>上传知识库文件</h2>
-          <p className="hint">仅支持 UTF-8 编码的 .txt 或 .md 文件</p>
+          <p className="hint">
+  支持 UTF-8 编码的 .txt、.md，以及文字版 PDF；暂不支持加密 PDF 和纯扫描件
+</p>
 
           <input
             type="file"
-            accept=".txt,.md"
+            accept=".txt,.md,.pdf"
             onChange={(event) => setSelectedFile(event.target.files[0] || null)}
           />
 
@@ -290,6 +296,21 @@ setChatError('')
 
         <section className="panel">
           <h2>知识库问答</h2>
+          <label>
+            检索范围：
+            <select
+              value={searchSource}
+              onChange={(event) => setSearchSource(event.target.value)}
+              disabled={asking || filesLoading}
+            >
+              <option value="">全部文件</option>
+              {files.map((file) => (
+                <option key={file.name} value={file.name}>
+                  {file.name}
+                </option>
+              ))}
+            </select>
+          </label>
 
           <div className="chat-list">
             {messages.length === 0 && (
@@ -317,7 +338,7 @@ setChatError('')
 
                     {message.citations.length > 0 && (
                       <div className="citations">
-                        <p>引用片段：</p>
+                        <p>检索片段（请核对是否支持回答）：</p>
 
                         {message.citations.map((citation, citationIndex) => (
                           <div
@@ -325,7 +346,9 @@ setChatError('')
                             key={`${citation.source}-${citation.chunk_index}-${citationIndex}`}
                           >
                             <strong>
-                              {citation.source} · 第 {citation.chunk_index} 段
+                              {citation.source}
+                              {citation.page != null && ` · 第 ${citation.page} 页`}
+                              {` · 第 ${citation.chunk_index} 段`}
                             </strong>
                             <p>{citation.excerpt}</p>
                           </div>

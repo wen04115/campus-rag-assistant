@@ -3,31 +3,34 @@ import requests
 from uuid import uuid4
 
 class UploadTests(unittest.TestCase):
-    def test_reject_pdf(self):    #接收文件类型不是 .txt 和.md  后缀不合法编码合法
-         response=requests.post(
-          "http://127.0.0.1:8001/api/upload",
-         files={
-            "file":("test.pdf",b"test content","application/pdf")
-         },
-        timeout=10,    
+    def test_reject_unsupported_file(self):  # 不支持的文件类型仍应被拒绝
+        response = requests.post(
+            "http://127.0.0.1:8001/api/upload",
+            files={
+                "file": (
+                    "test.docx",
+                    b"test content",
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                )
+            },
+            timeout=10,
         )
 
-         self.assertEqual(response.status_code,400) 
-         self.assertEqual(
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
             response.json()["detail"],
-            "只支持 .txt 和 .md 文件",
+            "只支持 .txt、.md 和文字版 PDF 文件",
         )
-
     def  test_reject_invalid_encoding(self):    #后缀合法编码不合法
         response=requests.post(
             "http://127.0.0.1:8001/api/upload",
             files={
                     "file":("invalid.txt",b"\xff\xfe","text/plain")
              },
-            timeout=10,    
+            timeout=10,
         )
-        
-        self.assertEqual(response.status_code,400) 
+
+        self.assertEqual(response.status_code,400)
         self.assertEqual(
             response.json()["detail"],
             "文件必须是 UTF-8 编码",
@@ -43,7 +46,7 @@ class UploadTests(unittest.TestCase):
         # 第一次上传，应该成功
         response=requests.post(url,files=files,timeout=10)
         self.assertEqual(response.status_code,200,response.text)
-        
+
         try:
             self.assertEqual(response.json()["filename"], filename)
 
@@ -68,7 +71,7 @@ class UploadTests(unittest.TestCase):
             timeout=10,
         )
         self.assertEqual(response.status_code, 200)
-        
+
         filenames = [item["name"] for item in response.json()]
         self.assertNotIn(filename, filenames)  #filename要查找的那个文件名  filenames当前所有文件名组成的列表
     def test_delete_missing_file(self):  #删除不存在的文件 ，应返回404

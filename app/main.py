@@ -8,7 +8,7 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-
+from app.document_loader import load_document_bytes
 from app.rag import KNOWLEDGE_DIR, ask, ask_stream, delete_source_from_index, rebuild_index
 
 load_dotenv()
@@ -62,6 +62,7 @@ init_history_database()
 
 class Question(BaseModel):
     question: str = Field(min_length=1, max_length=500)
+    source: str | None = Field(default=None, min_length=1, max_length=255)
 
 
 @app.get("/", include_in_schema=False)
@@ -74,7 +75,7 @@ def health():
     return {"status": "ok"}
 
 
-@app.post("/api/upload")   #上传接口 
+@app.post("/api/upload")
 async def upload_knowledge(file: UploadFile = File(...)):
     if not file.filename:
         raise HTTPException(status_code=400, detail="请选择文件")
@@ -82,37 +83,48 @@ async def upload_knowledge(file: UploadFile = File(...)):
     filename = Path(file.filename).name
     suffix = Path(filename).suffix.lower()
 
-    if suffix not in {".txt", ".md"}:
+    if suffix not in {".txt", ".md", ".pdf"}:
         raise HTTPException(
             status_code=400,
-            detail="只支持 .txt 和 .md 文件",
+            detail="只支持 .txt、.md 和文字版 PDF 文件",
         )
 
+    # 单个文件最多 10 MiB，超出时不继续读取
+    max_size = 10 * 1024 * 1024
+    content = await file.read(max_size + 1)
+
+    if len(content) > max_size:
+        raise HTTPException(
+            status_code=413,
+            detail="文件不能超过 10 MiB",
+        )
+
+    # 先验证编码或 PDF 是否能解析，失败时不保存
     try:
-        content = await file.read()
-        text = content.decode("utf-8")
-    except UnicodeDecodeError as exc:
+        load_document_bytes(content, filename)
+    except ValueError as exc:
         raise HTTPException(
             status_code=400,
-            detail="文件必须是 UTF-8 编码",
+            detail=str(exc),
         ) from exc
 
     KNOWLEDGE_DIR.mkdir(parents=True, exist_ok=True)
-
     target_path = KNOWLEDGE_DIR / filename
-    if target_path.exists():
+
+    try:
+        # xb：以二进制新建，禁止覆盖同名文件
+        with target_path.open("xb") as target:
+            target.write(content)
+    except FileExistsError as exc:
         raise HTTPException(
             status_code=409,
             detail="同名文件已存在，请先删除旧文件再上传",
-        )
-
-    target_path.write_text(text, encoding="utf-8")
+        ) from exc
 
     return {
         "filename": filename,
         "message": "上传成功，请点击建立 / 重建索引",
     }
-
 
 @app.get("/api/files")
 def get_knowledge_files():
@@ -127,7 +139,7 @@ def get_knowledge_files():
             ),
         }
         for path in KNOWLEDGE_DIR.iterdir()
-        if path.is_file() and path.suffix.lower() in {".txt", ".md"}
+        if path.is_file() and path.suffix.lower() in {".txt", ".md", ".pdf"}
     ]
 
     return sorted(files, key=lambda item: item["updated_at"], reverse=True)
@@ -138,7 +150,7 @@ def delete_knowledge_file(filename: str):
     safe_filename = Path(filename).name
     suffix = Path(safe_filename).suffix.lower()
 
-    if safe_filename != filename or suffix not in {".txt", ".md"}:
+    if safe_filename != filename or suffix not in {".txt", ".md", ".pdf"}:
         raise HTTPException(status_code=400, detail="不支持删除该文件")
 
     target_path = KNOWLEDGE_DIR / safe_filename
@@ -198,7 +210,7 @@ def get_history():
 @app.post("/api/chat")
 def chat(payload: Question):
     try:
-        result = ask(payload.question)
+        result = ask(payload.question, source=payload.source)
 
         save_chat_history(payload.question, result)
 
@@ -212,7 +224,7 @@ def chat(payload: Question):
 def chat_stream(payload: Question):
     try:
         return StreamingResponse(
-            ask_stream(payload.question),
+            ask_stream(payload.question, source=payload.source),
             media_type="text/plain; charset=utf-8",
         )
     except RuntimeError as exc:

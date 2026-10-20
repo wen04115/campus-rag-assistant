@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.database import get_db
-from app.models import KnowledgeBase, User
+from app.models import KnowledgeBase, KnowledgeDocument, User
 
 
 router = APIRouter(
@@ -172,9 +172,37 @@ def delete_knowledge_base(
         current_user,
     )
 
+    document_id = db.scalar(
+        select(KnowledgeDocument.id)
+        .where(
+            KnowledgeDocument.knowledge_base_id == knowledge_base.id,
+        )
+        .limit(1)
+    )
+
+    if document_id is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="知识库中还有文档，请先删除文档",
+        )
+
     try:
         db.delete(knowledge_base)
         db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+
+        # 防止检查之后，另一请求恰好添加了文档。
+        if exc.orig.args and exc.orig.args[0] == 1451:
+            raise HTTPException(
+                status_code=409,
+                detail="知识库中还有关联数据，不能删除",
+            ) from exc
+
+        raise HTTPException(
+            status_code=500,
+            detail="删除知识库失败",
+        ) from exc
     except SQLAlchemyError as exc:
         db.rollback()
         raise HTTPException(

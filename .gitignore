@@ -9,3 +9,4 @@ plan_render/
 tmp_plan_render/
 work/
 data/chat_history.db
+data/documents/

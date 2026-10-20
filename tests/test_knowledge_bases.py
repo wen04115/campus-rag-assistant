@@ -5,7 +5,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app import knowledge_bases as api
-from app.models import Base, User
+from app.models import Base, KnowledgeDocument, User
 
 
 class KnowledgeBaseTests(unittest.TestCase):
@@ -147,3 +147,34 @@ class KnowledgeBaseTests(unittest.TestCase):
                 current_user=self.user_a,
             )
         self.assertEqual(caught.exception.status_code, 404)
+
+    def test_cannot_delete_library_with_documents(self):
+        library = self.create_library(self.user_a, "有文档的知识库")
+        library_id = library.id
+
+        document = KnowledgeDocument(
+            original_name="测试.txt",
+            storage_name="test_document.txt",
+            size=10,
+            knowledge_base_id=library_id,
+        )
+        self.db.add(document)
+        self.db.commit()
+        document_id = document.id
+
+        with self.assertRaises(HTTPException) as caught:
+            api.delete_knowledge_base(
+                knowledge_base_id=library_id,
+                db=self.db,
+                current_user=self.user_a,
+            )
+
+        self.assertEqual(caught.exception.status_code, 409)
+        self.assertIsNotNone(self.db.get(KnowledgeDocument, document_id))
+
+        result = api.read_knowledge_base(
+            knowledge_base_id=library_id,
+            db=self.db,
+            current_user=self.user_a,
+        )
+        self.assertEqual(result.id, library_id)

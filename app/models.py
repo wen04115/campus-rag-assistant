@@ -45,3 +45,34 @@ class KnowledgeBase(Base):
         nullable=False,
         index=True,
     )
+
+class KnowledgeDocument(Base):
+    __tablename__ = "documents"
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=True,
+    )
+
+    original_name: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+
+    storage_name: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        unique=True,
+    )
+
+    size: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+
+    knowledge_base_id: Mapped[int] = mapped_column(
+        ForeignKey("knowledge_bases.id"),
+        nullable=False,
+        index=True,
+    )

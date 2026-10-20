@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from contextlib import closing
 from dotenv import load_dotenv
+from app.documents import router as documents_router
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -17,6 +18,7 @@ load_dotenv()
 app = FastAPI(title="Campus RAG Demo", version="1.0.0")
 app.include_router(auth_router)
 app.include_router(knowledge_bases_router)
+app.include_router(documents_router)
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 ROOT = Path(__file__).resolve().parent.parent
 HISTORY_DB = ROOT / "data" / "chat_history.db"

@@ -46,6 +46,11 @@ class KnowledgeBase(Base):
         index=True,
     )
 
+    index_collection: Mapped[str | None] = mapped_column(
+        String(63),
+        nullable=True,
+    )
+
 class KnowledgeDocument(Base):
     __tablename__ = "documents"
 

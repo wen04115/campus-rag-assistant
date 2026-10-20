@@ -13,12 +13,16 @@ from app.document_loader import load_document_bytes
 from app.rag import KNOWLEDGE_DIR, ask, ask_stream, delete_source_from_index, rebuild_index
 from app.auth import router as auth_router
 from app.knowledge_bases import router as knowledge_bases_router
+from app.knowledge_index import router as knowledge_index_router
+from app.knowledge_chat import router as knowledge_chat_router
 
 load_dotenv()
 app = FastAPI(title="Campus RAG Demo", version="1.0.0")
 app.include_router(auth_router)
 app.include_router(knowledge_bases_router)
 app.include_router(documents_router)
+app.include_router(knowledge_index_router)
+app.include_router(knowledge_chat_router)
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 ROOT = Path(__file__).resolve().parent.parent
 HISTORY_DB = ROOT / "data" / "chat_history.db"

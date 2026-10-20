@@ -5,7 +5,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -13,7 +13,7 @@ from app.auth import get_current_user
 from app.database import get_db
 from app.document_loader import load_document_bytes
 from app.knowledge_bases import get_owned_knowledge_base
-from app.models import KnowledgeDocument, User
+from app.models import KnowledgeBase, KnowledgeDocument, User
 
 
 logger = logging.getLogger(__name__)
@@ -119,6 +119,12 @@ def upload_document(
     created = False
 
     try:
+        db.execute(
+            update(KnowledgeBase)
+            .where(KnowledgeBase.id == knowledge_base.id)
+            .values(index_collection=None)
+        )
+
         directory.mkdir(parents=True, exist_ok=True)
 
         with target.open("xb") as output:
@@ -259,8 +265,13 @@ def delete_document(
     moved = False
 
     try:
-        # 先临时改名，数据库操作失败时可以尝试恢复。
-        # 原文件已经丢失时，仍允许清理数据库中的记录。
+        db.execute(
+            update(KnowledgeBase)
+            .where(KnowledgeBase.id == knowledge_base.id)
+            .values(index_collection=None)
+        )
+
+
         if target.exists():
             target.rename(staged)
             moved = True

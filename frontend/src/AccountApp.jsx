@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import DocumentPanel from './DocumentPanel.jsx'
 import {
   login,
@@ -7,7 +7,35 @@ import {
   createKnowledgeBase,
   renameKnowledgeBase,
   deleteKnowledgeBase,
+  apiRequest,
 } from './api.js'
+
+const TOKEN_KEY = 'campus-rag.access-token'
+
+function readSavedToken() {
+  try {
+    return sessionStorage.getItem(TOKEN_KEY) || ''
+  } catch {
+    return ''
+  }
+}
+
+function saveToken(token) {
+  try {
+    sessionStorage.setItem(TOKEN_KEY, token)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function clearSavedToken() {
+  try {
+    sessionStorage.removeItem(TOKEN_KEY)
+  } catch {
+    // 浏览器禁止存储访问时，仍允许清除页面内存中的登录状态。
+  }
+}
 
 export default function AccountApp() {
   const [username, setUsername] = useState('')
@@ -19,6 +47,8 @@ export default function AccountApp() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [newLibraryName, setNewLibraryName] = useState('')
+  const [initialToken] = useState(readSavedToken)
+  const [restoring, setRestoring] = useState(Boolean(initialToken))
   const selectedLibrary = libraries.find(
     (item) => String(item.id) === selectedId,
   )
@@ -40,6 +70,7 @@ export default function AccountApp() {
   }
 
     const handleLogout = useCallback(() => {
+    clearSavedToken()
     setSession(null)
     setLibraries([])
     setTotal(0)
@@ -49,6 +80,63 @@ export default function AccountApp() {
     setNewLibraryName('')
     setError('')
   }, [])
+
+    useEffect(() => {
+    if (!initialToken) return
+
+    const controller = new AbortController()
+    const { signal } = controller
+
+    Promise.all([
+      apiRequest('/api/auth/me', {
+        token: initialToken,
+        signal,
+      }),
+      apiRequest('/api/knowledge-bases?page=1&size=20', {
+        token: initialToken,
+        signal,
+      }),
+    ])
+      .then(([user, data]) => {
+        if (signal.aborted) return
+
+        if (!user || typeof user.username !== 'string') {
+          throw new Error('用户信息返回格式异常')
+        }
+
+        if (!data || !Array.isArray(data.items)) {
+          throw new Error('知识库列表返回格式异常')
+        }
+
+        setLibraries(data.items)
+        setTotal(data.total)
+        setSelectedId(
+          data.items.length > 0 ? String(data.items[0].id) : '',
+        )
+        setSession({ token: initialToken, user })
+      })
+      .catch((requestError) => {
+        if (signal.aborted) return
+
+        if (requestError.status === 401) {
+          clearSavedToken()
+          setError('登录已过期，请重新登录')
+        } else {
+          // 网络或服务器故障不等于令牌过期，不删除保存的令牌。
+          setError(
+            '暂时无法恢复登录，请确认后端已启动后刷新页面，'
+            + '也可以重新登录。',
+          )
+        }
+      })
+      .finally(() => {
+        if (!signal.aborted) {
+          setRestoring(false)
+        }
+      })
+
+    return () => controller.abort()
+  }, [initialToken])
 
   async function handleLogin(event) {
     event.preventDefault()
@@ -74,9 +162,16 @@ export default function AccountApp() {
         throw new Error('用户信息返回格式异常')
       }
 
-      applyLibraries(data)
+            applyLibraries(data)
       setSession({ token, user })
       setPassword('')
+
+      if (!saveToken(token)) {
+        setError(
+          '登录成功，但浏览器不允许保存会话，刷新后需要重新登录。',
+        )
+      }
+
     } catch (requestError) {
       setError(requestError.message || '登录失败，请稍后重试')
     } finally {
@@ -254,6 +349,17 @@ export default function AccountApp() {
         }
     }
 
+    if (restoring) {
+    return (
+      <main className="page">
+        <div className="card">
+          <h1>个人知识库助手</h1>
+          <p role="status">正在恢复登录，请稍候…</p>
+        </div>
+      </main>
+    )
+  }
+
   return (
     <main className="page">
       <div className="card">
@@ -294,7 +400,8 @@ export default function AccountApp() {
             </form>
 
             <p className="hint">
-              登录凭证仅保存在当前页面内存中，刷新后需要重新登录。
+              登录凭证保存在当前标签页的会话存储中，支持刷新恢复；
+              不会保存密码，凭证过期后需要重新登录。
             </p>
           </section>
         ) : (

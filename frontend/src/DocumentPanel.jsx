@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { apiRequest } from './api.js'
+import { apiRequest, ApiError } from './api.js'
 
 export default function DocumentPanel({
   token,
@@ -203,7 +203,7 @@ export default function DocumentPanel({
     })
   }
 
-    async function handleAsk(event) {
+      async function handleAsk(event) {
     event.preventDefault()
     if (busy) return
 
@@ -217,34 +217,175 @@ export default function DocumentPanel({
     await runTask('ask', async (signal) => {
       setReply(null)
 
-      const result = await apiRequest(
-        `/api/knowledge-bases/${knowledgeBaseId}/chat`,
-        {
-          token,
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ question: text }),
-          signal,
-        },
-      )
+      let reader
+      let answer = ''
+      let metadataSeen = false
+      let completed = false
 
-      if (signal.aborted) return
+      function processLine(line) {
+        if (signal.aborted || !line.trim()) return
 
-      if (
-        !result
-        || result.knowledge_base_id !== knowledgeBaseId
-        || typeof result.answer !== 'string'
-        || !Array.isArray(result.citations)
-      ) {
-        throw new Error('问答接口返回格式异常')
+        if (completed) {
+          throw new Error('完成事件之后收到额外数据')
+        }
+
+        const event = JSON.parse(line)
+
+        if (event.type === 'error') {
+          throw new Error(event.message || '回答未完成')
+        }
+
+        if (event.type === 'metadata') {
+          if (
+            metadataSeen
+            || event.knowledge_base_id !== knowledgeBaseId
+            || !Array.isArray(event.sources)
+            || !Array.isArray(event.citations)
+          ) {
+            throw new Error('流式来源信息异常')
+          }
+
+          metadataSeen = true
+
+          setReply({
+            knowledge_base_id: knowledgeBaseId,
+            question: text,
+            answer: '',
+            sources: event.sources,
+            citations: event.citations,
+            complete: false,
+          })
+          return
+        }
+
+        if (!metadataSeen) {
+          throw new Error('没有收到知识库来源信息')
+        }
+
+        if (event.type === 'token') {
+          if (typeof event.content !== 'string') {
+            throw new Error('回答片段格式异常')
+          }
+
+          answer += event.content
+          const currentAnswer = answer
+
+          setReply((previous) => (
+            previous
+              ? { ...previous, answer: currentAnswer }
+              : previous
+          ))
+          return
+        }
+
+        if (event.type === 'done') {
+          if (
+            event.knowledge_base_id !== knowledgeBaseId
+            || typeof event.answer !== 'string'
+            || event.answer !== answer
+            || !Array.isArray(event.sources)
+            || !Array.isArray(event.citations)
+          ) {
+            throw new Error('完整回答校验失败')
+          }
+
+          completed = true
+
+          setReply({
+            knowledge_base_id: knowledgeBaseId,
+            question: text,
+            answer: event.answer,
+            sources: event.sources,
+            citations: event.citations,
+            complete: true,
+          })
+          return
+        }
+
+        throw new Error('收到未知的流式事件')
       }
 
-      setReply({
-        ...result,
-        question: text,
-      })
+      try {
+        const response = await fetch(
+          `/api/knowledge-bases/${knowledgeBaseId}/chat/stream`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ question: text }),
+            signal,
+          },
+        )
+
+        if (!response.ok) {
+          const data = await response.json().catch(() => null)
+
+          throw new ApiError(
+            typeof data?.detail === 'string'
+              ? data.detail
+              : `请求失败（${response.status}）`,
+            response.status,
+          )
+        }
+
+        if (
+          !response.headers.get('content-type')
+            ?.includes('application/x-ndjson')
+        ) {
+          throw new Error('服务器没有返回预期的数据流')
+        }
+
+        if (!response.body) {
+          throw new Error('浏览器没有收到可读取的数据流')
+        }
+
+        reader = response.body.getReader()
+        const decoder = new TextDecoder('utf-8', { fatal: true })
+        let buffer = ''
+
+        while (true) {
+          const { value, done } = await reader.read()
+
+          if (signal.aborted) return
+          if (done) break
+
+          buffer += decoder.decode(value, { stream: true })
+
+          let newline
+          while ((newline = buffer.indexOf('\n')) !== -1) {
+            const line = buffer.slice(0, newline)
+            buffer = buffer.slice(newline + 1)
+            processLine(line)
+          }
+        }
+
+        buffer += decoder.decode()
+
+        if (buffer.trim()) {
+          processLine(buffer)
+        }
+
+        if (!completed) {
+          throw new Error('连接已结束，但未收到完成事件，回答不完整')
+        }
+      } catch (requestError) {
+        if (!signal.aborted) {
+          setReply((previous) => (
+            previous
+              ? { ...previous, complete: false }
+              : previous
+          ))
+        }
+
+        throw requestError
+      } finally {
+        if (reader) {
+          await reader.cancel().catch(() => undefined)
+          reader.releaseLock()
+        }
+      }
     })
   }
 
@@ -375,9 +516,24 @@ export default function DocumentPanel({
               {reply.question}
             </p>
 
+                        <p
+              className={reply.complete ? 'status' : 'account-error'}
+              role="status"
+            >
+              {reply.complete
+                ? '回答已完成'
+                : busy === 'ask'
+                  ? '回答生成中，当前文字尚不是完整结论…'
+                  : '回答未完成，请勿将部分文字当作完整结论。'}
+            </p>
+
             <p className="knowledge-answer">
               <strong>回答：</strong>
-              {reply.answer}
+              {reply.answer || (
+                busy === 'ask'
+                  ? '等待模型返回首段文字…'
+                  : '未收到回答文字'
+              )}
             </p>
 
             {reply.citations.length > 0 && (

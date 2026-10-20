@@ -5,7 +5,7 @@ from pathlib import Path
 from contextlib import closing
 from dotenv import load_dotenv
 from app.documents import router as documents_router
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -118,8 +118,16 @@ def homepage():
 def health():
     return {"status": "ok"}
 
-
-@app.post("/api/upload")
+def reject_legacy_api():
+    raise HTTPException(
+        status_code=410,
+        detail="旧版共享接口已停用，请使用登录后的个人知识库接口",
+    )
+@app.post(
+    "/api/upload",
+    dependencies=[Depends(reject_legacy_api)],
+    deprecated=True,
+)
 async def upload_knowledge(file: UploadFile = File(...)):
     if not file.filename:
         raise HTTPException(status_code=400, detail="请选择文件")
@@ -170,7 +178,11 @@ async def upload_knowledge(file: UploadFile = File(...)):
         "message": "上传成功，请点击建立 / 重建索引",
     }
 
-@app.get("/api/files")
+@app.get(
+    "/api/files",
+    dependencies=[Depends(reject_legacy_api)],
+    deprecated=True,
+)
 def get_knowledge_files():
     KNOWLEDGE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -189,7 +201,11 @@ def get_knowledge_files():
     return sorted(files, key=lambda item: item["updated_at"], reverse=True)
 
 
-@app.delete("/api/files/{filename}")
+@app.delete(
+    "/api/files/{filename}",
+    dependencies=[Depends(reject_legacy_api)],
+    deprecated=True,
+)
 def delete_knowledge_file(filename: str):
     safe_filename = Path(filename).name
     suffix = Path(safe_filename).suffix.lower()
@@ -213,14 +229,22 @@ def delete_knowledge_file(filename: str):
         raise HTTPException(status_code=500, detail=f"删除文件失败：{exc}") from exc
 
 
-@app.post("/api/index")
+@app.post(
+    "/api/index",
+    dependencies=[Depends(reject_legacy_api)],
+    deprecated=True,
+)
 def index_knowledge():
     try:
         return rebuild_index()
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-@app.get("/api/history")
+@app.get(
+    "/api/history",
+    dependencies=[Depends(reject_legacy_api)],
+    deprecated=True,
+)
 def get_history():
     try:
         with closing(sqlite3.connect(HISTORY_DB)) as conn, conn:
@@ -254,7 +278,11 @@ def get_history():
             detail=f"读取历史记录失败：{exc}",
         ) from exc
 
-@app.post("/api/chat")
+@app.post(
+    "/api/chat",
+    dependencies=[Depends(reject_legacy_api)],
+    deprecated=True,
+)
 def chat(payload: Question):
     try:
         result = ask(payload.question, source=payload.source)
@@ -271,7 +299,11 @@ def chat(payload: Question):
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-@app.post("/api/chat/stream")
+@app.post(
+    "/api/chat/stream",
+    dependencies=[Depends(reject_legacy_api)],
+    deprecated=True,
+)
 def chat_stream(payload: Question):
     try:
         # 检索和模型初始化在开始响应前执行。

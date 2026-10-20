@@ -68,7 +68,11 @@ class StreamResponseTests(unittest.IsolatedAsyncioTestCase):
                 "测试问题",
                 source="测试.pdf",
             )
-            save.assert_called_once_with("测试问题", finished)
+            save.assert_called_once_with(
+                "测试问题",
+                finished,
+                source="测试.pdf",
+            )
 
     async def test_failure_returns_error_without_saving(self):
         def broken_events():

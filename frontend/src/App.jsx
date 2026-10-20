@@ -149,7 +149,11 @@ function App() {
     }
 
     setHistory(data)
-    setHistoryStatus(`共 ${data.length} 条历史记录`)
+    setHistoryStatus(
+      data.length === 0
+        ? '暂无历史记录'
+        : `显示最近 ${data.length} 条历史记录（最多 20 条）`
+    )
   } catch (error) {
     setHistoryStatus(`读取失败：${error.message}`)
   } finally {
@@ -405,11 +409,12 @@ function App() {
                   <>
                     <p className="answer">{message.answer}</p>
 
-                    {message.sources.length > 0 && (
+                                        {message.sources.length > 0 && (
                       <p className="sources">
                         来源：{message.sources.join('、')}
                       </p>
                     )}
+
 
                     {message.citations.length > 0 && (
                       <div className="citations">
@@ -490,9 +495,35 @@ function App() {
             {item.answer}
           </p>
 
-          <p className="history-sources">
-            来源：{item.sources.join('、')}
+                    <p className="history-sources">
+            检索范围：
+            {item.search_source == null
+              ? '未记录（旧记录）'
+              : item.search_source === ''
+                ? '全部文件'
+                : item.search_source}
           </p>
+
+          <p className="history-sources">
+            检索来源：{item.sources.join('、')}
+          </p>
+
+          {(item.citations || []).length > 0 && (
+            <details>
+              <summary>检索片段（请核对是否支持回答）</summary>
+
+              {item.citations.map((citation, index) => (
+                <div className="citation" key={`${item.id}-${index}`}>
+                  <strong>
+                    {citation.source}
+                    {citation.page != null && ` · 第 ${citation.page} 页`}
+                    {` · 第 ${citation.chunk_index} 段`}
+                  </strong>
+                  <p>{citation.excerpt}</p>
+                </div>
+              ))}
+            </details>
+          )}
         </article>
       ))}
     </div>

@@ -2,7 +2,7 @@ import json
 import sqlite3
 from datetime import datetime
 from pathlib import Path
-
+from contextlib import closing
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
@@ -21,7 +21,7 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 def init_history_database():
     HISTORY_DB.parent.mkdir(parents=True, exist_ok=True)
 
-    with sqlite3.connect(HISTORY_DB) as conn:
+    with closing(sqlite3.connect(HISTORY_DB)) as conn, conn:
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS chat_history (
@@ -29,31 +29,65 @@ def init_history_database():
                 question TEXT NOT NULL,
                 answer TEXT NOT NULL,
                 sources TEXT NOT NULL,
-                created_at TEXT NOT NULL
+                created_at TEXT NOT NULL,
+                search_source TEXT,
+                citations TEXT NOT NULL DEFAULT '[]'
             )
             """
         )
 
+        # 已有数据库不会因为 CREATE TABLE 自动新增字段。
+        columns = {
+            row[1]
+            for row in conn.execute(
+                "PRAGMA table_info(chat_history)"
+            ).fetchall()
+        }
 
-def save_chat_history(question: str, result: dict):
+        if "search_source" not in columns:
+            conn.execute(
+                "ALTER TABLE chat_history ADD COLUMN search_source TEXT"
+            )
+
+        if "citations" not in columns:
+            conn.execute(
+                """
+                ALTER TABLE chat_history
+                ADD COLUMN citations TEXT NOT NULL DEFAULT '[]'
+                """
+            )
+
+def save_chat_history(
+    question: str,
+    result: dict,
+    source: str | None = None,
+):
     sources_json = json.dumps(
         result.get("sources", []),
         ensure_ascii=False,
     )
-
+    citations_json = json.dumps(
+        result.get("citations", []),
+        ensure_ascii=False,
+    )
     created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    with sqlite3.connect(HISTORY_DB) as conn:
+    with closing(sqlite3.connect(HISTORY_DB)) as conn, conn:
         conn.execute(
             """
-            INSERT INTO chat_history (question, answer, sources, created_at)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO chat_history (
+                question, answer, sources, created_at,
+                search_source, citations
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
             (
                 question,
                 result["answer"],
                 sources_json,
                 created_at,
+                source if source is not None else "",
+                citations_json,
             ),
         )
 
@@ -179,12 +213,13 @@ def index_knowledge():
 @app.get("/api/history")
 def get_history():
     try:
-        with sqlite3.connect(HISTORY_DB) as conn:
+        with closing(sqlite3.connect(HISTORY_DB)) as conn, conn:
             conn.row_factory = sqlite3.Row
 
             rows = conn.execute(
                 """
-                SELECT id, question, answer, sources, created_at
+                SELECT id, question, answer, sources, created_at,
+                  search_source, citations
                 FROM chat_history
                 ORDER BY id DESC
                 LIMIT 20
@@ -198,6 +233,8 @@ def get_history():
                 "answer": row["answer"],
                 "sources": json.loads(row["sources"]),
                 "created_at": row["created_at"],
+                "search_source": row["search_source"],
+                "citations": json.loads(row["citations"]),
             }
             for row in rows
         ]
@@ -212,7 +249,11 @@ def chat(payload: Question):
     try:
         result = ask(payload.question, source=payload.source)
 
-        save_chat_history(payload.question, result)
+        save_chat_history(
+            payload.question,
+            result,
+            source=payload.source,
+        )
 
         return result
     except RuntimeError as exc:
@@ -237,7 +278,11 @@ def chat_stream(payload: Question):
         try:
             for event in events:
                 if event["type"] == "done":
-                    save_chat_history(payload.question, event)
+                    save_chat_history(
+                        payload.question,
+                        event,
+                        source=payload.source,
+                    )
 
                 # 每行是一个独立的 JSON 事件。
                 yield json.dumps(event, ensure_ascii=False) + "\n"

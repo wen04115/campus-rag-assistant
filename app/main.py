@@ -223,11 +223,37 @@ def chat(payload: Question):
 @app.post("/api/chat/stream")
 def chat_stream(payload: Question):
     try:
-        return StreamingResponse(
-            ask_stream(payload.question, source=payload.source),
-            media_type="text/plain; charset=utf-8",
+        # 检索和模型初始化在开始响应前执行。
+        events = ask_stream(
+            payload.question,
+            source=payload.source,
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    def generate():
+        try:
+            for event in events:
+                if event["type"] == "done":
+                    save_chat_history(payload.question, event)
+
+                # 每行是一个独立的 JSON 事件。
+                yield json.dumps(event, ensure_ascii=False) + "\n"
+        except Exception:
+            yield json.dumps(
+                {
+                    "type": "error",
+                    "message": "回答生成或保存失败，请稍后重试",
+                },
+                ensure_ascii=False,
+            ) + "\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="application/x-ndjson",
+        headers={"Cache-Control": "no-cache"},
+    )
+
+# 临时流式测试，测试结束后整段删除。

@@ -180,13 +180,43 @@ def ask_stream(question: str, source: str | None = None):
         )
     )
 
+    citations = [
+        {
+            "source": doc.metadata.get("source", "未知"),
+            "page": doc.metadata.get("page"),
+            "chunk_index": doc.metadata.get("chunk_index", "未知"),
+            "excerpt": doc.page_content[:100],
+        }
+        for doc in matched
+    ]
+
     def generate():
+        # 先发送检索来源和页码。
+        yield {
+            "type": "metadata",
+            "sources": sources,
+            "citations": citations,
+        }
+
+        answer_parts = []
+
         for chunk in (PROMPT | model).stream(
             {"context": context, "question": question}
         ):
             if chunk.content:
-                yield chunk.content
+                answer_parts.append(chunk.content)
 
-        yield "\n\n来源：" + "、".join(sources)
+                yield {
+                    "type": "token",
+                    "content": chunk.content,
+                }
+
+        # 只有模型正常结束，才发送完整回答。
+        yield {
+            "type": "done",
+            "answer": "".join(answer_parts),
+            "sources": sources,
+            "citations": citations,
+        }
 
     return generate()

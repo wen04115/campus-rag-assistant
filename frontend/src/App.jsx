@@ -157,8 +157,9 @@ function App() {
   }
  }
 
-  async function handleAsk(event) {
+    async function handleAsk(event) {
     event.preventDefault()
+    if (asking) return
 
     const text = question.trim()
 
@@ -167,18 +168,40 @@ function App() {
       return
     }
 
-setChatError('')
+    const assistantIndex = messages.length + 1
 
-    setMessages((oldMessages) => [
-      ...oldMessages,
-      { role: 'user', content: text },
-    ])
+    // 后续收到的数据，都更新这一条回答。
+    function updateAnswer(fields) {
+      setMessages((previous) =>
+        previous.map((message, index) =>
+          index === assistantIndex
+            ? { ...message, ...fields }
+            : message
+        )
+      )
+    }
 
+    setChatError('')
     setQuestion('')
     setAsking(true)
 
+    setMessages((previous) => [
+      ...previous,
+      { role: 'user', content: text },
+      {
+        role: 'assistant',
+        answer: '',
+        sources: [],
+        citations: [],
+      },
+    ])
+
+    let reader
+    let answer = ''
+    let completed = false
+
     try {
-      const response = await fetch('/api/chat', {
+      const response = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -189,34 +212,86 @@ setChatError('')
         }),
       })
 
-      const data = await response.json()
-
       if (!response.ok) {
+        const data = await response.json()
         throw new Error(data.detail || '提问失败')
       }
 
-      setMessages((oldMessages) => [
-        ...oldMessages,
-        {
-          role: 'assistant',
-          answer: data.answer,
-          sources: data.sources || [],
-          citations: data.citations || [],
-        },
-      ])
-      await loadHistory()
+      if (!response.body) {
+        throw new Error('浏览器未能读取响应数据流')
+      }
 
+      reader = response.body.getReader()
+      const decoder = new TextDecoder('utf-8')
+      let buffer = ''
+
+      function handleLine(line) {
+        if (!line.trim()) return
+
+        const data = JSON.parse(line)
+
+        if (data.type === 'metadata') {
+          updateAnswer({
+            sources: data.sources || [],
+            citations: data.citations || [],
+          })
+        } else if (data.type === 'token') {
+          answer += data.content
+          updateAnswer({ answer })
+        } else if (data.type === 'done') {
+          answer = data.answer
+          completed = true
+          updateAnswer({
+            answer,
+            sources: data.sources || [],
+            citations: data.citations || [],
+          })
+        } else if (data.type === 'error') {
+          throw new Error(data.message || '回答生成失败')
+        }
+      }
+
+      while (true) {
+        const { value, done } = await reader.read()
+
+        if (done) {
+          buffer += decoder.decode()
+          break
+        }
+
+        // 中文字符和 JSON 行可能被拆到不同网络数据包中。
+        buffer += decoder.decode(value, { stream: true })
+
+        let newlineIndex = buffer.indexOf('\n')
+
+        while (newlineIndex !== -1) {
+          handleLine(buffer.slice(0, newlineIndex))
+          buffer = buffer.slice(newlineIndex + 1)
+          newlineIndex = buffer.indexOf('\n')
+        }
+      }
+
+      if (buffer.trim()) {
+        handleLine(buffer)
+      }
+
+      if (!completed) {
+        throw new Error('连接提前结束，回答可能不完整')
+      }
+
+      await loadHistory()
     } catch (error) {
-      setMessages((oldMessages) => [
-        ...oldMessages,
-        {
-          role: 'assistant',
-          answer: `请求失败：${error.message}`,
-          sources: [],
-          citations: [],
-        },
-      ])
+      updateAnswer({
+        answer: answer
+          ? `${answer}\n\n【回答未正常完成：${error.message}】`
+          : `请求失败：${error.message}`,
+      })
     } finally {
+      if (reader) {
+        await reader.cancel().catch(() => undefined)
+        reader.releaseLock()
+      }
+
       setAsking(false)
     }
   }

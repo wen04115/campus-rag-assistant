@@ -10,7 +10,7 @@ from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-
+from app.knowledge_history import save_chat_record
 from app.auth import get_current_user
 from app.database import engine, get_db
 from app.knowledge_bases import get_owned_knowledge_base
@@ -210,7 +210,21 @@ def chat_with_knowledge_base(
                 detail="回答生成失败，请稍后重试",
             ) from exc
 
+    if not answer.strip():
+        raise HTTPException(
+            status_code=502,
+            detail="模型没有返回有效回答",
+        )
+
     ensure_index_current(db, prepared)
+
+    save_chat_record(
+        db,
+        prepared,
+        payload.question,
+        answer,
+    )
+
     return chat_result(prepared, answer)
 
 
@@ -292,6 +306,13 @@ def stream_with_knowledge_base(
 
             with Session(engine) as check_db:
                 ensure_index_current(check_db, prepared)
+
+                save_chat_record(
+                    check_db,
+                    prepared,
+                    payload.question,
+                    answer,
+                )
 
             yield encode_event({
                 "type": "done",

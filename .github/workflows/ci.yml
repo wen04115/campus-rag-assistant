@@ -46,21 +46,54 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
-          python -m pip install --no-cache-dir -r requirements.txt "httpx==0.28.1"
+          python -m pip install --no-cache-dir -r requirements-dev.txt
 
       - name: Check dependency compatibility
         run: python -m pip check
 
       - name: Run isolated backend tests
+        run: python tests/run_unit.py
+
+  mysql:
+    name: MySQL migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ci_root_only
+          MYSQL_DATABASE: rag_platform
+          MYSQL_USER: ci_runner
+          MYSQL_PASSWORD: ci_test_only
+        ports:
+          - 3306/tcp
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      MYSQL_HOST: 127.0.0.1
+      MYSQL_PORT: ${{ job.services.mysql.ports[3306] }}
+      MYSQL_USER: ci_runner
+      MYSQL_PASSWORD: ci_test_only
+      MYSQL_DATABASE: rag_platform
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install migration dependencies
+        run: python -m pip install "SQLAlchemy==2.0.52" "PyMySQL[rsa]==1.2.3" "alembic==1.20.0" "python-dotenv==1.2.2"
+      - name: Upgrade empty database and check model consistency
         run: |
-          python -m unittest discover -s tests -p "test_document_loader.py" -v
-          python -m unittest discover -s tests -p "test_documents.py" -v
-          python -m unittest discover -s tests -p "test_kb_index.py" -v
-          python -m unittest discover -s tests -p "test_knowledge_*.py" -v
-          python -m unittest discover -s tests -p "test_retrieval.py" -v
-          python -m unittest discover -s tests -p "test_stream_response.py" -v
-          python -m unittest discover -s tests -p "test_history.py" -v
-          python -m unittest discover -s tests -p "test_legacy_disabled.py" -v
+          python -m alembic upgrade head
+          python -m alembic check
+      - name: Verify JSON and foreign key behavior on MySQL
+        run: python tests/verify_mysql.py
 
   frontend:
     name: Frontend checks
@@ -88,7 +121,10 @@ jobs:
         run: npm ci
 
       - name: Lint active frontend files
-        run: npx --no-install eslint src/AccountApp.jsx src/DocumentPanel.jsx src/api.js src/main.jsx vite.config.js
+        run: npm run lint
+
+      - name: Test frontend API helpers
+        run: npm test
 
       - name: Build frontend
         run: npm run build

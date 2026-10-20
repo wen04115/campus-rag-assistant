@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiRequest, ApiError } from './api.js'
+import HistoryPanel from './HistoryPanel.jsx'
 
 export default function DocumentPanel({
   token,
@@ -14,6 +15,7 @@ export default function DocumentPanel({
   const [message, setMessage] = useState('')
   const [question, setQuestion] = useState('')
   const [reply, setReply] = useState(null)
+  const [historyVersion, setHistoryVersion] = useState(0)
   const controllerRef = useRef(null)
   const fileInputRef = useRef(null)
 
@@ -370,6 +372,7 @@ export default function DocumentPanel({
         if (!completed) {
           throw new Error('连接已结束，但未收到完成事件，回答不完整')
         }
+        setHistoryVersion((previous) => previous + 1)
       } catch (requestError) {
         if (!signal.aborted) {
           setReply((previous) => (
@@ -566,6 +569,13 @@ export default function DocumentPanel({
           </div>
         )}
       </section>
+
+      <HistoryPanel
+        key={`${knowledgeBaseId}:${historyVersion}`}
+        token={token}
+        knowledgeBaseId={knowledgeBaseId}
+        onUnauthorized={onUnauthorized}
+      />
 
       {message && <p className="status" role="status">{message}</p>}
 

@@ -52,6 +52,8 @@ class KnowledgeStreamTests(unittest.IsolatedAsyncioTestCase):
         self.prepare.return_value = self.prepared
 
         self.check_index = self.mock_attribute("ensure_index_current")
+        self.save_record = self.mock_attribute("save_chat_record")
+        self.save_record.return_value = 100
         self.model_factory = self.mock_attribute("create_chat_model")
         self.prompt = self.mock_attribute("PROMPT")
 
@@ -112,6 +114,13 @@ class KnowledgeStreamTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(self.check_index.call_count, 2)
 
+        self.save_record.assert_called_once_with(
+            self.session_factory.return_value.__enter__.return_value,
+            self.prepared,
+            "测试问题",
+            "第一段第二段",
+        )
+
     async def test_model_failure_emits_error_without_done(self):
         def broken_stream(_inputs):
             yield SimpleNamespace(content="部分回答")
@@ -130,6 +139,7 @@ class KnowledgeStreamTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(
             any(event["type"] == "done" for event in events)
         )
+        self.save_record.assert_not_called()
 
     async def test_index_change_prevents_done_event(self):
         self.check_index.side_effect = [
@@ -147,6 +157,7 @@ class KnowledgeStreamTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(
             any(event["type"] == "done" for event in events)
         )
+        self.save_record.assert_not_called()
 
     async def test_empty_context_does_not_call_model(self):
         self.prepared.update({
@@ -181,3 +192,21 @@ class KnowledgeStreamTests(unittest.IsolatedAsyncioTestCase):
         self.model_factory.assert_not_called()
         self.chain.stream.assert_not_called()
         self.session_factory.assert_not_called()
+
+    async def test_history_failure_prevents_done_event(self):
+        self.save_record.side_effect = HTTPException(
+            status_code=503,
+            detail="回答已生成，但历史保存失败",
+        )
+
+        events = await read_events(self.make_response())
+
+        self.assertEqual(
+            [event["type"] for event in events],
+            ["metadata", "token", "token", "error"],
+        )
+        self.assertIn(
+            "历史保存失败",
+            events[-1]["message"],
+        )
+        self.save_record.assert_called_once()

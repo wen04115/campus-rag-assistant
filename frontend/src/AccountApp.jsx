@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import DocumentPanel from './DocumentPanel.jsx'
+import { readSavedToken, saveToken, clearSavedToken } from './session.js'
 import {
   login,
   getCurrentUser,
@@ -9,33 +10,6 @@ import {
   deleteKnowledgeBase,
   apiRequest,
 } from './api.js'
-
-const TOKEN_KEY = 'campus-rag.access-token'
-
-function readSavedToken() {
-  try {
-    return sessionStorage.getItem(TOKEN_KEY) || ''
-  } catch {
-    return ''
-  }
-}
-
-function saveToken(token) {
-  try {
-    sessionStorage.setItem(TOKEN_KEY, token)
-    return true
-  } catch {
-    return false
-  }
-}
-
-function clearSavedToken() {
-  try {
-    sessionStorage.removeItem(TOKEN_KEY)
-  } catch {
-    // 浏览器禁止存储访问时，仍允许清除页面内存中的登录状态。
-  }
-}
 
 export default function AccountApp() {
   const [username, setUsername] = useState('')
@@ -309,7 +283,7 @@ export default function AccountApp() {
 
         const confirmed = window.confirm(
         `确定删除知识库“${name}”（ID：${id}）吗？`
-        + '\n只能删除没有文档的知识库，删除后无法在页面恢复。',
+        + '\n只能删除没有文档的知识库；该库的问答历史也会一并删除，无法在页面恢复。',
         )
 
         if (!confirmed) return

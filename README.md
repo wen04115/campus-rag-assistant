@@ -1,198 +1,148 @@
-# 文档知识库问答助手
+# Campus RAG：个人知识库问答助手
 
-面向本地校园资料的 RAG 知识库问答应用，支持文档上传、向量检索、来源引用和历史记录。
+面向学习资料的本地演示项目：账号登录 → 私有知识库 → 上传文档 → 建立索引 → 流式问答和来源引用 → 历史记录。
 
-用户可以上传 `.txt` 或 `.md` 文件，点击建立索引后，再根据上传的资料提问。系统会先从资料里找相关内容，再让大模型根据这些内容回答。
+本项目尚不是可直接暴露公网的生产系统。开发环境统一使用后端 `8002`；旧共享 API 已返回 410，不能继续使用旧版共享前端。
 
-## 核心功能
+## 已实现
 
-- 支持上传 UTF-8 编码的 TXT、Markdown 文档
-- 查看和删除已上传文件及对应的向量片段
-- 文档切分、向量化，使用 Chroma 检索相关内容
-- 根据检索内容生成回答，展示来源文件和引用片段
-- 对知识库里没有的问题，提示“没有找到相关信息”
-- 使用 SQLite 保存问答历史记录
-- 刷新网页后还能看到以前的提问记录
-- 支持流式返回，用户体验更佳
-- 支持使用 Docker 运行后端
+- JWT 登录、密码哈希、账号注册接口；页面刷新后验证并恢复当前标签页会话，不保存密码。
+- 按账号隔离的知识库创建、列表、重命名和删除。文档未清空时拒绝删除知识库。
+- UTF-8 TXT / Markdown / 文字版 PDF 上传、分页列表、删除；单文件不超过 10 MiB。
+- 每个知识库使用独立 Chroma 集合；文档变化使索引失效，重建成功后再切换指向。
+- 普通问答与 NDJSON 真流式问答，展示来源、页码、文档 ID 和检索片段。
+- MySQL 持久化问答历史：保存完整回答，分页查询当前用户当前知识库的记录。
+- 历史是当时的回答/引用快照；不会自动作为后续问题的上下文，也不是当前文档仍存在的证明。
+- 删除知识库时，通过数据库外键级联删除该库历史。旧 SQLite 历史不自动归属给任何用户。
+- GitHub Actions：隔离后端测试、前端 API 测试/静态检查/构建、临时 MySQL 迁移与外键检查。
+- 离线索引维护工具，默认仅预览，不自动清理集合。
 
-## 用到的技术
+## 技术与目录
 
-- React：做前端页面
-- Vite：启动 React 开发环境
-- FastAPI：写后端接口
-- LangChain：处理 RAG 流程
-- Chroma：保存文本向量，查找相似内容
-- DeepSeek API：生成最终回答
-- SQLite：保存聊天记录
+Python 3.12、FastAPI、SQLAlchemy / Alembic、MySQL、LangChain、Chroma、React、Vite。
+聊天模型通过 OpenAI-compatible 接口调用；嵌入模型在本地 CPU 运行，首次真实建索引需要下载模型。
 
-## 项目结构
+- `app/auth.py`、`security.py`：账号、密码哈希和 JWT。
+- `app/knowledge_bases.py`、`documents.py`：归属检查和文档管理。
+- `app/kb_index.py`、`knowledge_index.py`：构建和切换私有索引。
+- `app/knowledge_chat.py`、`knowledge_history.py`：问答、流式事件和历史。
+- `frontend/src/AccountApp.jsx`：当前页面入口；`DocumentPanel.jsx` 和 `HistoryPanel.jsx`：问答及历史。
+- `migrations/`：MySQL 版本迁移，禁止用 create_all 代替业务迁移。
+- `data/documents/`、`data/vector_store/`：上传文件和向量。
+- `outputs/`：本地生成物、临时文件、可控缓存；不提交到 Git。
+- `tests/`：内存数据库/模拟模型测试；`verify_mysql.py` 仅允许在 CI 临时数据库运行。
 
-```text
-app/
-  main.py       后端接口，比如上传、建索引、提问、读取历史记录
-  rag.py        文档切分、向量检索、调用大模型
+## 本地开发（Windows PowerShell）
 
-frontend/
-  src/App.jsx   React 页面主要代码
-  src/index.css 页面样式
-  vite.config.js Vite 代理配置
+保留现有 D 盘 checkout。新安装时，在项目内创建虚拟环境，不在 C 盘创建环境：
 
-data/
-  knowledge/    上传的知识库文件
-  vector_store/ Chroma 建好的向量索引
-  chat_history.db 聊天历史数据库
-```  
+```powershell
+cd D:\codex_create\2026-09-09\ai-python-rag-python-api-langchain
+New-Item -ItemType Directory -Force outputs\test-tmp, outputs\pip-cache, outputs\npm-cache | Out-Null
+$env:TEMP = (Resolve-Path outputs\test-tmp).Path
+$env:TMP = $env:TEMP
+$env:PIP_CACHE_DIR = (Resolve-Path outputs\pip-cache).Path
+$env:npm_config_cache = (Resolve-Path outputs\npm-cache).Path
+$env:HF_HOME = Join-Path (Get-Location).Path "outputs\huggingface"
 
-## RAG 流程
+# 已有可用 Python 环境时，不需要重新安装。
+D:\Python312\python.exe -m venv .venv
+.\.venv\Scripts\python.exe -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+```
 
-### 上传文件
-→ 保存到 data/knowledge
-→ 把文件切成多个片段
-→ 把片段转成向量
-→ 保存到 Chroma
+仅首次且尚无 `.env` 时复制 `.env.example`，不要覆盖现有配置。设置 MySQL、聊天服务和随机 JWT 密钥（至少 32 字节），不要提交真实密钥。
 
-### 用户提问
+MySQL 数据库必须是独立的 `rag_platform`，连接账号需有该库的建表/读写权限；不要指向另一个任务管理项目的数据库。
 
-→ Chroma 找最相似的几个片段
-→ 把片段和问题一起发给大模型
-→ 返回回答、来源文件和引用片段
+迁移之前备份数据库，再检查和升级：
 
-## 项目截图
-### 上传并建立向量索引
+```powershell
+D:\Python312\python.exe -m alembic current
+D:\Python312\python.exe -m alembic upgrade head
+D:\Python312\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8002
+```
 
-![上传并建立向量索引](./rag-upload-and-index.png)
+如果使用上面新建的虚拟环境，把命令中的 Python 换为 `.\.venv\Scripts\python.exe`。启动命令不带自动 reload，编辑后端后需要自行重启；不要误杀其他服务。
 
-### 问答历史与来源引用
+另一个终端启动前端（环境变量仅对设置它的终端及子进程有效）：
 
-![问答历史与来源引用](./rag-history-with-sources.png)
-
-### FastAPI 接口文档
-
-![FastAPI 接口文档](./rag-api-docs.png)
-
-### 本地启动
-本地后端和 Docker 后端选择一种启动，两者默认都使用 8001 端口，不要同时启动
-
-本地启动后端
-先进入项目根目录：
-cd campus-rag-assistant
-
-第一次运行时安装 Python 依赖：
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-
-复制环境变量文件：
-Copy-Item .env.example .env
-
-打开 .env，填写自己的 API Key：
-OPENAI_API_KEY=你的真实密钥
-OPENAI_BASE_URL=https://api.deepseek.com
-CHAT_MODEL=deepseek-v4-flash
-
-### 启动后端：
-uvicorn app.main:app --reload --port 8001
-后端接口文档地址：
-http://127.0.0.1:8001/docs
-
-### 启动前端
-新开一个终端：
+```powershell
 cd D:\codex_create\2026-09-09\ai-python-rag-python-api-langchain\frontend
-npm install
+$env:npm_config_cache = Join-Path (Split-Path (Get-Location).Path) "outputs\npm-cache"
+npm ci
 npm run dev
-
-浏览器打开：
-http://localhost:5173
-
-## 使用 Docker 启动后端
-
-先在项目根目录配置好 `.env`，然后构建镜像：
-
-```powershell
-docker build -t document-rag-assistant .
 ```
 
-第一次运行：
+页面使用 Vite 实际打印的地址（通常 localhost:5173），接口文档：<http://127.0.0.1:8002/docs>。
+通过 Swagger 注册自己的演示账号，登录响应不代表 Swagger 已授权；Authorize 只填写令牌，不加额外引号或重复 Bearer。
+
+## 自动检查
 
 ```powershell
-docker run --name document-rag -p 127.0.0.1:8001:8001 --env-file .env -v "${PWD}/data:/app/data" document-rag-assistant
-```
+# 项目根目录；使用隔离数据库和模拟模型，不调用真实聊天服务。
+D:\Python312\python.exe tests/run_unit.py
 
-看到启动成功后，访问 http://127.0.0.1:8001/health，返回 `{"status":"ok"}` 即正常。
-
-在终端按 Ctrl + C 停止。下次启动直接执行：
-
-```powershell
-docker start -a document-rag
-```
-
-数据保存在本机项目的 `data` 目录。React 前端单独启动：
-
-```powershell
 cd frontend
-npm run dev
+npm run lint
+npm test
+npm run build
 ```
 
-### 使用方法
-1. 上传一个 .txt 或 .md 文件。
-2. 点击“建立 / 重建索引”。
-3. 在聊天框输入问题。
-4. 查看回答、来源和引用片段。
-5. 在历史记录区域查看之前问过的问题。
+`npm run lint` 检查当前活跃入口及组件，不包含保留的旧共享 App.jsx；前端单元测试检查请求封装，不等于完整浏览器 E2E。
+`test_upload.py` / `test_pdf_upload.py` 是旧 8001 服务的历史集成测试，不属于当前离线测试入口。
 
-### 接口
-- POST /api/upload：上传文件
-- POST /api/index：建立索引
-- POST /api/chat：普通问答
-- POST /api/chat/stream：流式问答
-- GET /api/history：读取聊天历史
-- GET /health：检查后端是否启动
-- GET /api/files：查看文件列表
-- DELETE /api/files/{filename}：删除文件及对应的向量片段
+CI 的 MySQL job 使用独立临时容器，不读取你的真实 .env，不需要真实模型密钥。云端新的检查必须提交推送后才能确认，不以本地结果替代。
 
-## 设计说明
-- 前端通过 Vite 代理将 `/api` 请求转发至 FastAPI，避免开发环境跨域问题。
-- 上传文件后需建立或重建向量索引，才可参与后续语义检索。
-- API Key 使用 `.env` 管理，并通过 `.gitignore` 防止提交敏感配置。
+## Docker 本地演示
 
-## 接口测试
+Dockerfile 会构建 React 并由 FastAPI 同源提供页面；无需再开 Vite，不经过会缓冲流式输出的反向代理。
+Compose 连接已有宿主机 MySQL，不新建或覆盖你的业务数据库。
 
-先启动后端，再在项目根目录执行：
+1. 先确认 Docker Desktop 的磁盘镜像在 D 盘、D 盘空间足够。构建会下载镜像和依赖，本项目不会自动执行构建。
+2. 停止所有共用当前 `data/` 向量目录的本机/旧 Docker 服务，避免同时写 Chroma。备份 MySQL 和 `data/`。
+3. 检查 .env。容器连接宿主机用 `host.docker.internal`；Linux 或远程 MySQL 可设置 `DOCKER_MYSQL_HOST`。MySQL 用户的 host 授权和防火墙必须允许该连接。
+4. 在项目根目录手动执行：
 
 ```powershell
-python -m pip install requests
-python -m unittest discover -s tests -v
+docker compose config --quiet
+docker compose build
+docker compose run --rm backend python -m alembic upgrade head
+docker compose up -d
+docker compose logs --tail 100 backend
 ```
 
-测试使用 unittest 和 requests，检查文件上传校验、同名上传和删除相关行为。
+页面和文档分别是 <http://127.0.0.1:8003> 和 <http://127.0.0.1:8003/docs>。
+端口仅绑定回环，避免替换旧 8001 / 本机 8002 服务；`APP_PORT` 可覆盖宿主机端口。
+`data/`、模型缓存和容器临时目录绑定到当前 D 盘项目；Docker 自身镜像位置仍由 Docker Desktop 管理。
+健康检查只验证 HTTP 进程，不能证明数据库、模型或索引可用。不执行自动迁移，避免启动时意外修改业务库。
+`docker compose down` 停止本项目容器，不要随意删除数据目录。此配置用于本地演示，不是公网生产部署模板。
 
-如果本机代理导致 ProxyError，在运行测试的 PowerShell 中先执行：
+## 索引维护：必须停服，默认预览
+
+每次重建使用新集合。失败的构建、旧版本集合和失效指向可能留下未引用集合；这是保留旧索引而不冒险在线删除的代价。
+
+先停止所有使用该向量目录的 API、建索引任务和容器，再备份 MySQL 与向量目录，然后运行：
 
 ```powershell
-$env:NO_PROXY = "127.0.0.1,localhost"
+D:\Python312\python.exe -m app.index_cleanup
+# 核对候选后才执行实际删除，不能在后台仍有构建任务时运行。
+D:\Python312\python.exe -m app.index_cleanup --apply --confirm-stopped
 ```
 
-测试会创建随机命名的文件，并在正常执行清理步骤时删除它。
+工具只处理严格匹配 `kb_<正整数>_<32位UUID>` 且数据库未引用的集合；保留当前有效集合、旧共享 intern_rag 和未知集合。
+预览也应在停服状态做。标志只是操作人员的确认，不是程序能自动证明所有其他进程都停止。
+删除不可从页面撤销，恢复要依赖备份。Chroma 的底层文件未必立即缩小；不要手工删数据库/向量碎片文件。
 
-## PDF 与指定文件检索
+## 验收与限制
 
-- 支持 UTF-8 编码的 TXT、Markdown 和文字版 PDF。
-- PDF 检索片段显示页码，按 PDF 第一页为 1 计数。
-- 暂不支持加密 PDF 和纯扫描件。
-- React 页面可选择检索全部文件或指定文件。
-- 在问题中写文件名不会自动限定范围，需要使用“检索范围”下拉框。
-- 检索片段是候选资料，不保证每个片段都实际支持回答。
+详见 [验收清单](docs/acceptance.md)。主要边界：
 
-## 流式问答
-
-- React 页面使用 POST /api/chat/stream 接收 NDJSON 数据流。
-- 事件包括 metadata、token、done 和 error。
-- 回答完整生成并成功保存后，才发送 done 事件。
-- 生成中断时，页面提示回答未完成，不保存半截回答。
-- 流式显示不消除检索和模型首段生成的等待时间。
-- 历史记录保存问题、完整回答、检索范围、来源和检索片段；PDF 片段包含页码。
-- 升级前的旧记录保留，但无法补回当时未保存的检索范围和片段信息。
-- 历史页面最多展示最近 20 条记录，不代表数据库总记录数。
-- 修改历史数据库结构前，可运行 `python backup_history.py` 备份。
-- 备份保存在本地 outputs 目录，不提交到仓库。
+- 不支持扫描图片 PDF / OCR；不支持自动网页检索。
+- 当前知识库、文档选择页只显示最近 20 条；历史支持翻页。
+- 普通/流式回答保存成功不保证客户端一定收到最终响应。网络中断后先检查历史，不自动重试，避免重复调用/保存。
+- 本地取消请求不保证上游模型立即停止计费；流式部分文字可能已经到达客户端。
+- 文档变化会使索引失效；不保证多进程高并发构建与回答的完备一致性。单实例演示，不设置多 worker。
+- sessionStorage 中的令牌可被同源脚本读取；无 refresh token、服务端即时撤销、登录限流或公网 TLS 配置。令牌约 30 分钟有效，退出页面不等于撤销已泄露的 JWT。
+- 向量检索不保证回答真实、完整；应核对原文和引用。恶意文档可能包含提示注入，不能把模型输出用于高风险自动决策。
+- 直接依赖已固定到当前环境版本，但不等于所有传递依赖均已锁定。

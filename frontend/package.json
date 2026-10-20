@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "lint": "eslint .",
+    "lint": "eslint src/AccountApp.jsx src/DocumentPanel.jsx src/HistoryPanel.jsx src/api.js src/session.js src/main.jsx vite.config.js",
+    "test": "node --test",
     "preview": "vite preview"
   },
   "dependencies": {

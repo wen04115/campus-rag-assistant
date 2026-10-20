@@ -15,6 +15,7 @@ from app.auth import router as auth_router
 from app.knowledge_bases import router as knowledge_bases_router
 from app.knowledge_index import router as knowledge_index_router
 from app.knowledge_chat import router as knowledge_chat_router
+from app.knowledge_history import router as knowledge_history_router
 
 load_dotenv()
 app = FastAPI(title="Campus RAG Demo", version="1.0.0")
@@ -23,10 +24,14 @@ app.include_router(knowledge_bases_router)
 app.include_router(documents_router)
 app.include_router(knowledge_index_router)
 app.include_router(knowledge_chat_router)
+app.include_router(knowledge_history_router)
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 ROOT = Path(__file__).resolve().parent.parent
 HISTORY_DB = ROOT / "data" / "chat_history.db"
+FRONTEND_DIR = ROOT / "web"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+if (FRONTEND_DIR / "assets").is_dir():
+    app.mount("/assets", StaticFiles(directory=FRONTEND_DIR / "assets"), name="frontend-assets")
 
 def init_history_database():
     HISTORY_DB.parent.mkdir(parents=True, exist_ok=True)
@@ -102,8 +107,6 @@ def save_chat_history(
         )
 
 
-init_history_database()
-
 class Question(BaseModel):
     question: str = Field(min_length=1, max_length=500)
     source: str | None = Field(default=None, min_length=1, max_length=255)
@@ -111,12 +114,22 @@ class Question(BaseModel):
 
 @app.get("/", include_in_schema=False)
 def homepage():
-    return FileResponse(STATIC_DIR / "index.html")
+    if (FRONTEND_DIR / "index.html").is_file():
+        return FileResponse(FRONTEND_DIR / "index.html")
+    return {"message": "本地开发请打开 Vite 页面 http://localhost:5173；接口文档见 /docs"}
 
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/favicon.svg", include_in_schema=False)
+def favicon():
+    path = FRONTEND_DIR / "favicon.svg"
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Not found")
+    return FileResponse(path)
 
 def reject_legacy_api():
     raise HTTPException(

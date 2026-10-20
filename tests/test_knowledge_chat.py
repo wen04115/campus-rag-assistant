@@ -4,11 +4,17 @@ from unittest.mock import patch
 
 from fastapi import HTTPException
 from langchain_core.documents import Document
-from sqlalchemy import create_engine, update
+from sqlalchemy import create_engine, select, update
 from sqlalchemy.orm import Session
 
 from app import knowledge_chat as api
-from app.models import Base, KnowledgeBase, KnowledgeDocument, User
+from app.models import (
+    Base,
+    KnowledgeBase,
+    KnowledgeChatRecord,
+    KnowledgeDocument,
+    User,
+)
 
 
 class KnowledgeChatTests(unittest.TestCase):
@@ -216,3 +222,21 @@ class KnowledgeChatTests(unittest.TestCase):
 
         self.assertEqual(caught.exception.status_code, 409)
         self.chain.invoke.assert_called_once()
+
+    def test_success_saves_history(self):
+        result = self.ask(self.user_a)
+
+        records = self.db.scalars(
+            select(KnowledgeChatRecord).where(
+                KnowledgeChatRecord.knowledge_base_id == self.library_id,
+            )
+        ).all()
+
+        self.assertEqual(len(records), 1)
+
+        record = records[0]
+        self.assertEqual(record.question, "资料说了什么？")
+        self.assertEqual(record.answer, result["answer"])
+        self.assertEqual(record.sources, result["sources"])
+        self.assertEqual(record.citations, result["citations"])
+        self.assertIsNotNone(record.created_at)

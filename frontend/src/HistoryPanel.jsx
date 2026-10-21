@@ -48,8 +48,10 @@ export default function HistoryPanel({ token, knowledgeBaseId, onUnauthorized })
   }
 
   return (
-    <section className="panel" aria-label="当前知识库问答历史">
-      <h2>问答历史</h2>
+    <details className="panel history-disclosure" aria-label="当前知识库问答历史">
+      <summary>
+        问答历史（{loading ? '正在读取…' : error ? '读取失败' : `共 ${total} 条`}，点击展开 / 收起）
+      </summary>
       <p className="hint">
         仅显示当前知识库已保存的完整回答。引用是回答时的快照，原文档可能已修改或删除。
         历史不会自动作为下一次提问的上下文。
@@ -68,6 +70,7 @@ export default function HistoryPanel({ token, knowledgeBaseId, onUnauthorized })
       </button>
       {error && <p className="account-error" role="alert">{error}</p>}
       {!loading && !error && items.length === 0 && <p>这一页暂无问答历史。</p>}
+      <div className="history-records" role="region" aria-label="本页问答历史记录" tabIndex={0}>
       {items.map((record) => (
         <details className="panel" key={record.id}>
           <summary>{record.question}</summary>
@@ -84,6 +87,7 @@ export default function HistoryPanel({ token, knowledgeBaseId, onUnauthorized })
           ))}
         </details>
       ))}
+      </div>
       <p className="hint">共 {total} 条 · 第 {page} 页</p>
       <div className="account-toolbar">
         <button type="button" disabled={loading || page <= 1} onClick={() => changePage(page - 1)}>
@@ -93,6 +97,6 @@ export default function HistoryPanel({ token, knowledgeBaseId, onUnauthorized })
           下一页
         </button>
       </div>
-    </section>
+    </details>
   )
 }

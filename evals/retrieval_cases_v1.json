@@ -1,0 +1,114 @@
+{
+  "name": "multi_doc_retrieval_v1",
+  "purpose": "development_baseline",
+  "knowledge_base_id": 5,
+  "knowledge_base_name": "RAG评测_多文档_v1",
+  "top_k": 4,
+  "cases": [
+    {
+      "id": "r01",
+      "question": "实习生想在家办公，应该提前多久找谁申请？",
+      "expected_document": "intern_work.md",
+      "expected_evidence": [
+        "提前1个工作日向业务导师申请"
+      ]
+    },
+    {
+      "id": "r02",
+      "question": "实习生每天的核心工作时段和每周最低到岗天数分别是多少？",
+      "expected_document": "intern_work.md",
+      "expected_evidence": [
+        "工作日10:00至17:00",
+        "每周至少到岗4天"
+      ]
+    },
+    {
+      "id": "r03",
+      "question": "正式员工申请远程办公需要提前多久？每周最多可以远程几天？",
+      "expected_document": "employee_work.md",
+      "expected_evidence": [
+        "提前2个工作日向直属主管申请",
+        "每周最多远程办公2天"
+      ]
+    },
+    {
+      "id": "r04",
+      "question": "正式员工的季度目标最晚什么时候交，由谁审核？",
+      "expected_document": "employee_work.md",
+      "expected_evidence": [
+        "每季度第一个周五前提交",
+        "由直属主管审核"
+      ]
+    },
+    {
+      "id": "r05",
+      "question": "外包人员申请远程服务要提前几个工作日，需要哪些人审批？",
+      "expected_document": "contractor_work.md",
+      "expected_evidence": [
+        "提前3个工作日提交",
+        "供应商负责人和公司项目负责人共同审批"
+      ]
+    },
+    {
+      "id": "r06",
+      "question": "外包人员的服务周报什么时候交，交给谁？",
+      "expected_document": "contractor_work.md",
+      "expected_evidence": [
+        "每周五下班前向公司项目负责人提交服务周报"
+      ]
+    },
+    {
+      "id": "r07",
+      "question": "实习生出差时，住宿和市内交通分别最多能报销多少？",
+      "expected_document": "intern_expense.md",
+      "expected_evidence": [
+        "住宿报销上限为每晚200元",
+        "市内交通报销上限为每天50元"
+      ]
+    },
+    {
+      "id": "r08",
+      "question": "实习生出差回来多久之内要报销？家里的宽带能报销吗？",
+      "expected_document": "intern_expense.md",
+      "expected_evidence": [
+        "出差结束后7个自然日内提交报销申请",
+        "不享受家庭宽带费用报销"
+      ]
+    },
+    {
+      "id": "r09",
+      "question": "正式员工因公出差，每晚住宿和每天市内交通的报销上限分别是多少？",
+      "expected_document": "employee_expense.md",
+      "expected_evidence": [
+        "住宿报销上限为每晚400元",
+        "市内交通报销上限为每天100元"
+      ]
+    },
+    {
+      "id": "r10",
+      "question": "经批准长期远程办公的正式员工，家庭宽带每月最多可以报销多少钱？",
+      "expected_document": "employee_expense.md",
+      "expected_evidence": [
+        "每月家庭宽带报销上限为80元"
+      ]
+    },
+    {
+      "id": "r11",
+      "question": "外包人员出差住宿是否有公司统一规定的报销上限，按什么标准结算？",
+      "expected_document": "contractor_expense.md",
+      "expected_evidence": [
+        "住宿费用按供应商合同约定结算",
+        "没有规定统一金额上限"
+      ]
+    },
+    {
+      "id": "r12",
+      "question": "外包人员出差结束后，应在多久内向谁提交费用材料？供应商每月什么时候提交费用汇总？",
+      "expected_document": "contractor_expense.md",
+      "expected_evidence": [
+        "出差结束后10个自然日内向供应商提交材料",
+        "供应商每月5日前向公司项目负责人提交上月费用汇总"
+      ]
+    }
+  ]
+}

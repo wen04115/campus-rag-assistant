@@ -1,0 +1,81 @@
+{
+  "name": "multi_doc_retrieval_followup_v1",
+  "purpose": "synthetic_followup_no_retrieval_tuning",
+  "knowledge_base_id": 5,
+  "knowledge_base_name": "RAG评测_多文档_v1",
+  "top_k": 4,
+  "cases": [
+    {
+      "id": "f01",
+      "question": "我刚来实习，第一周除了把开发环境配好、读完项目资料，还要交什么？最晚哪天交给谁？",
+      "expected_document": "intern_work.md",
+      "expected_evidence": ["实习第一周需要完成环境搭建和项目文档阅读", "周五前向业务导师提交学习计划"]
+    },
+    {
+      "id": "f02",
+      "question": "实习生每周可以有两天不去办公室、在家干活吗？请给出制度中的每周上限。",
+      "expected_document": "intern_work.md",
+      "expected_evidence": ["每周最多远程办公1天"]
+    },
+    {
+      "id": "f03",
+      "question": "转正以后，每天必须在岗的时间还是十点到下午五点吗？一周要来公司几天？",
+      "expected_document": "employee_work.md",
+      "expected_evidence": ["正式员工的核心工作时间为工作日09:30至18:00", "每周到岗5天"]
+    },
+    {
+      "id": "f04",
+      "question": "正式员工想一周居家办公两天，得提前几个工作日跟谁报备？",
+      "expected_document": "employee_work.md",
+      "expected_evidence": ["提前2个工作日向直属主管申请", "每周最多远程办公2天"]
+    },
+    {
+      "id": "f05",
+      "question": "供应商派来的外包同事每天几点开始现场服务、几点结束，每周到岗几天？",
+      "expected_document": "contractor_work.md",
+      "expected_evidence": ["外包人员的现场服务时间为工作日09:00至18:00", "每周到岗5天"]
+    },
+    {
+      "id": "f06",
+      "question": "外包同事说自己也能像正式员工一样每周远程两天，这符合制度吗？外包人员的每周上限是多少？",
+      "expected_document": "contractor_work.md",
+      "expected_evidence": ["外包人员每周最多远程服务1天"]
+    },
+    {
+      "id": "f07",
+      "question": "我还在实习期，出差回来要在几天以内申请报销，最后由谁审核？",
+      "expected_document": "intern_expense.md",
+      "expected_evidence": ["出差结束后7个自然日内提交报销申请", "由业务导师审核"]
+    },
+    {
+      "id": "f08",
+      "question": "实习生能把家里的上网费报给公司吗？如果因公出差，住酒店每晚最多报多少？",
+      "expected_document": "intern_expense.md",
+      "expected_evidence": ["实习生不享受家庭宽带费用报销", "住宿报销上限为每晚200元"]
+    },
+    {
+      "id": "f09",
+      "question": "我是正式员工，出差刚结束，报销申请可以拖多久？要由业务导师还是直属主管审核？",
+      "expected_document": "employee_expense.md",
+      "expected_evidence": ["出差结束后15个自然日内提交报销申请", "由直属主管审核"]
+    },
+    {
+      "id": "f10",
+      "question": "公司批准我长期居家办公了，作为正式员工，我家每月网费最多可以报销多少？",
+      "expected_document": "employee_expense.md",
+      "expected_evidence": ["经批准长期远程办公的正式员工", "每月家庭宽带报销上限为80元"]
+    },
+    {
+      "id": "f11",
+      "question": "我是外包人员，差旅票据能直接走公司员工的报销系统吗？材料应该交给谁，多久之内交？",
+      "expected_document": "contractor_expense.md",
+      "expected_evidence": ["外包人员不向公司员工报销系统提交费用申请", "出差结束后10个自然日内向供应商提交材料"]
+    },
+    {
+      "id": "f12",
+      "question": "外包同事的家庭网费能由公司直接报销吗？供应商上个月的费用汇总应该在本月几号前交给谁？",
+      "expected_document": "contractor_expense.md",
+      "expected_evidence": ["公司不直接报销外包人员的家庭宽带费用", "供应商每月5日前向公司项目负责人提交上月费用汇总"]
+    }
+  ]
+}

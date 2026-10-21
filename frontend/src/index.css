@@ -261,6 +261,33 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+.document-disclosure {
+  margin: 16px 0;
+}
+
+.document-disclosure > summary {
+  cursor: pointer;
+  padding: 10px 0;
+  font-weight: 600;
+}
+
+.document-disclosure .document-list {
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.history-disclosure > summary {
+  cursor: pointer;
+  padding: 10px 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.history-records {
+  max-height: 360px;
+  overflow-y: auto;
+}
+
 .document-list {
   list-style: none;
   margin: 16px 0;

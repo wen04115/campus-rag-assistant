@@ -450,9 +450,12 @@ export default function DocumentPanel({
         建立期间请不要切换知识库或重复点击。
       </p>
 
-      <p className="hint">
-        共 {total} 个文档，当前显示最近 {documents.length} 个，最多 20 个。
-      </p>
+      <details className="document-disclosure" key={knowledgeBaseId}>
+        <summary>已上传文档（共 {total} 个，点击展开 / 收起）</summary>
+
+        <p className="hint">
+          当前列出最近 {documents.length} 个文档，最多显示 20 个。
+        </p>
 
       {documents.length === 0 && !busy && !error && (
         <p>当前知识库还没有文档。</p>
@@ -479,6 +482,7 @@ export default function DocumentPanel({
           </li>
         ))}
       </ul>
+      </details>
 
             <section className="panel">
         <h2>当前知识库问答</h2>
